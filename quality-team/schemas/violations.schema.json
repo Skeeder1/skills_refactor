@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "violations.schema.json",
+  "title": "Violations",
+  "description": "Output produit par l'agent principles-auditor — violations qualitatives classifiées par sévérité",
+  "type": "object",
+  "required": ["generated_at", "files_analyzed", "blocking", "important", "nit", "suggestion", "ai_smells", "manual_verify"],
+  "properties": {
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp ISO 8601 de génération"
+    },
+    "files_analyzed": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Nombre de fichiers analysés"
+    },
+    "blocking": {
+      "type": "array",
+      "description": "Violations qui causent des bugs, violent un principe fondamental ou sont unsafe",
+      "items": { "$ref": "#/$defs/violation" }
+    },
+    "important": {
+      "type": "array",
+      "description": "Violations qui créent une dette significative ou rendent le code difficile à maintenir",
+      "items": { "$ref": "#/$defs/violation" }
+    },
+    "nit": {
+      "type": "array",
+      "description": "Style, nommage mineur, petit cleanup sans impact sur la maintenabilité",
+      "items": { "$ref": "#/$defs/violation" }
+    },
+    "suggestion": {
+      "type": "array",
+      "description": "Améliorations optionnelles non urgentes ou incertaines",
+      "items": { "$ref": "#/$defs/violation" }
+    },
+    "ai_smells": {
+      "type": "array",
+      "description": "Patterns AI-générés détectés (depuis ai-smells.md)",
+      "items": {
+        "type": "object",
+        "required": ["file", "rule", "description", "severity"],
+        "properties": {
+          "file": { "type": "string" },
+          "rule": {
+            "type": "string",
+            "description": "Identifiant du pattern ex: structural-clone, swallowed-errors"
+          },
+          "description": { "type": "string" },
+          "severity": {
+            "type": "string",
+            "enum": ["blocking", "important", "nit", "suggestion"]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "manual_verify": {
+      "type": "array",
+      "description": "Fichiers trop risqués à modifier sans couverture de tests — exclus du refactor automatique",
+      "items": {
+        "type": "object",
+        "required": ["file", "reason", "recommendation"],
+        "properties": {
+          "file": { "type": "string" },
+          "reason": { "type": "string", "description": "Raison du marquage manual_verify" },
+          "recommendation": { "type": "string", "description": "Action recommandée avant de retenter" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "$defs": {
+    "violation": {
+      "type": "object",
+      "required": ["file", "principle", "description", "fix_hint"],
+      "properties": {
+        "file": { "type": "string", "description": "Chemin relatif du fichier" },
+        "line": { "type": "integer", "minimum": 1, "description": "Ligne approximative de la violation (optionnel)" },
+        "principle": {
+          "type": "string",
+          "description": "Principe violé ex: P1-single-responsibility, P2-single-source-of-truth"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description précise de la violation en langage naturel"
+        },
+        "evidence": {
+          "type": "string",
+          "description": "Extrait de code ou fait concret qui prouve la violation"
+        },
+        "fix_hint": {
+          "type": "string",
+          "description": "Suggestion concrète de correction"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

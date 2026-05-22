@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "changes.schema.json",
+  "title": "Changes",
+  "description": "Output produit par l'agent refactor-executor — journal des modifications appliquées et skippées",
+  "type": "object",
+  "required": ["generated_at", "applied", "skipped", "baseline"],
+  "properties": {
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp ISO 8601 de génération"
+    },
+    "applied": {
+      "type": "array",
+      "description": "Changements appliqués avec succès et validés",
+      "items": {
+        "type": "object",
+        "required": ["file", "type", "description", "blast_radius_checked", "validated", "tools_passed"],
+        "properties": {
+          "file": { "type": "string", "description": "Chemin relatif du fichier modifié" },
+          "type": {
+            "type": "string",
+            "enum": [
+              "dead-code-removal",
+              "rename",
+              "extract-constant",
+              "immutability-fix",
+              "error-handling",
+              "type-annotation",
+              "doc-update",
+              "debug-cleanup"
+            ],
+            "description": "Catégorie du changement"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description précise de ce qui a été fait"
+          },
+          "blast_radius_checked": {
+            "type": "boolean",
+            "description": "True si qartez_impact a été appelé avant la modification"
+          },
+          "validated": {
+            "type": "boolean",
+            "description": "True si la validation post-modification a réussi"
+          },
+          "tools_passed": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["tsc", "biome", "clippy"]
+            },
+            "description": "Outils de validation qui ont passé"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "skipped": {
+      "type": "array",
+      "description": "Fichiers non modifiés avec la raison du skip",
+      "items": {
+        "type": "object",
+        "required": ["file", "reason"],
+        "properties": {
+          "file": { "type": "string" },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "manual-verify",
+              "blacklisted",
+              "blast-radius-too-high",
+              "reverted:tsc-failed",
+              "reverted:biome-failed",
+              "reverted:clippy-failed",
+              "reverted:validation-failed"
+            ],
+            "description": "Raison standardisée du skip"
+          },
+          "validation_output": {
+            "type": "string",
+            "description": "Message d'erreur complet si revert suite à échec de validation"
+          },
+          "recommendation": {
+            "type": "string",
+            "description": "Action recommandée pour débloquer ce fichier"
+          },
+          "blast_radius": {
+            "type": "integer",
+            "description": "Blast radius si skip pour blast-radius-too-high"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "baseline": {
+      "type": "object",
+      "required": ["tsc", "biome", "clippy"],
+      "description": "État des outils de validation avant le début du refactoring",
+      "properties": {
+        "tsc": {
+          "type": "string",
+          "enum": ["pass", "fail", "skipped"],
+          "description": "Résultat de tsc --noEmit avant refactoring"
+        },
+        "biome": {
+          "type": "string",
+          "enum": ["pass", "fail", "skipped"],
+          "description": "Résultat de biome check avant refactoring"
+        },
+        "clippy": {
+          "type": "string",
+          "enum": ["pass", "fail", "skipped"],
+          "description": "Résultat de cargo clippy avant refactoring (skipped si pas de Rust)"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

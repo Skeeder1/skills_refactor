@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "findings.schema.json",
+  "title": "Findings",
+  "description": "Output produit par l'agent scout — résultats d'analyse statique consolidés",
+  "type": "object",
+  "required": ["scope", "generated_at", "tools_used", "hotspots", "dead_code", "complexity", "clones", "lint", "unused_deps", "errors"],
+  "properties": {
+    "scope": {
+      "type": "string",
+      "description": "Chemin du répertoire analysé"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp ISO 8601 de génération"
+    },
+    "tools_used": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Outils utilisés lors de l'analyse (knip, lizard, biome, qartez, clippy...)"
+    },
+    "hotspots": {
+      "type": "array",
+      "description": "Fichiers à haut risque (complexité × couplage × churn)",
+      "items": {
+        "type": "object",
+        "required": ["file", "score", "reason"],
+        "properties": {
+          "file": { "type": "string", "description": "Chemin relatif du fichier" },
+          "score": { "type": "number", "minimum": 0, "description": "Score de risque (higher = more risky)" },
+          "reason": { "type": "string", "description": "Combinaison de facteurs ex: high_ccn+churn+pagerank" },
+          "blast_radius": { "type": "integer", "minimum": 0, "description": "Nombre de fichiers dépendants directs+transitifs" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "dead_code": {
+      "type": "array",
+      "description": "Symboles, exports ou fichiers sans importeurs détectés",
+      "items": {
+        "type": "object",
+        "required": ["file", "symbol", "type", "tool"],
+        "properties": {
+          "file": { "type": "string" },
+          "symbol": { "type": "string", "description": "Nom du symbole inutilisé" },
+          "type": {
+            "type": "string",
+            "enum": ["function", "export", "file", "class", "variable", "type"],
+            "description": "Type de symbole"
+          },
+          "tool": { "type": "string", "description": "Outil qui a détecté ce dead code" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "complexity": {
+      "type": "array",
+      "description": "Fonctions qui violent les seuils de complexité",
+      "items": {
+        "type": "object",
+        "required": ["file", "fn", "ccn", "nloc", "params", "threshold_breached"],
+        "properties": {
+          "file": { "type": "string" },
+          "fn": { "type": "string", "description": "Nom de la fonction" },
+          "ccn": { "type": "integer", "minimum": 1, "description": "Complexité cyclomatique" },
+          "nloc": { "type": "integer", "minimum": 1, "description": "Nombre de lignes de code" },
+          "params": { "type": "integer", "minimum": 0, "description": "Nombre de paramètres" },
+          "threshold_breached": {
+            "type": "string",
+            "description": "Seuil violé ex: ccn>10, nloc>40, params>4"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "clones": {
+      "type": "array",
+      "description": "Blocs de code dupliqués détectés",
+      "items": {
+        "type": "object",
+        "required": ["files", "lines", "tool"],
+        "properties": {
+          "files": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 2,
+            "description": "Fichiers contenant la duplication"
+          },
+          "lines": { "type": "integer", "minimum": 1, "description": "Nombre de lignes dupliquées" },
+          "tool": { "type": "string", "description": "Outil qui a détecté le clone" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "lint": {
+      "type": "array",
+      "description": "Violations de lint (biome, clippy, eslint...)",
+      "items": {
+        "type": "object",
+        "required": ["file", "rule", "severity", "message", "tool"],
+        "properties": {
+          "file": { "type": "string" },
+          "line": { "type": "integer", "minimum": 1 },
+          "rule": { "type": "string", "description": "Identifiant de la règle ex: noDirectMutation" },
+          "severity": {
+            "type": "string",
+            "enum": ["error", "warn", "info"],
+            "description": "Sévérité de la violation"
+          },
+          "message": { "type": "string" },
+          "tool": { "type": "string", "description": "Outil qui a reporté la violation" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "unused_deps": {
+      "type": "array",
+      "description": "Dépendances npm/cargo non utilisées",
+      "items": {
+        "type": "object",
+        "required": ["package", "type"],
+        "properties": {
+          "package": { "type": "string", "description": "Nom du package" },
+          "type": {
+            "type": "string",
+            "enum": ["dep", "devDep", "crate"],
+            "description": "Type de dépendance"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "errors": {
+      "type": "array",
+      "description": "Erreurs survenues lors de l'analyse (outil indisponible, timeout...)",
+      "items": {
+        "type": "object",
+        "required": ["tool", "error"],
+        "properties": {
+          "tool": { "type": "string" },
+          "error": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

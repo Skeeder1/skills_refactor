@@ -1,136 +1,90 @@
-# quality-team — Chaîne d'agents pour l'audit et le refactoring automatique
+# quality-team — Audit et refactoring prudent pour tout codebase
 
-`/quality-team` lance une séquence de 4 sous-agents spécialisés qui analysent,
-nettoient, et documentent un codebase de façon autonome et reproductible.
+`/quality-team` lance une chaîne de 4 sous-agents généralistes. Le skill détecte
+le projet au runtime, charge les règles universelles, puis ajoute seulement les
+playbooks qui correspondent au stack détecté.
 
----
-
-## Ce que fait la chaîne
+## Chaîne d'agents
 
 | Agent | Rôle | Output |
 |-------|------|--------|
-| **scout** | Cartographie objective via CLI déterministes (knip, lizard, biome, clippy) et Qartez MCP optionnel. Read-only strict. | `findings.json` |
-| **principles-auditor** | Applique 10 principes clean code + 27 AI smells sur les fichiers flaggés par scout. Classifie par sévérité. Read-only strict. | `violations.json` |
-| **refactor-executor** | Applique les changements sûrs (blocking + important) avec validation tsc/biome/clippy après chaque fichier. Revert si échec. | `changes.json` |
-| **doc-updater** | Met à jour le JSDoc des fonctions modifiées, AGENTS.md si des modules ont bougé, génère REFACTOR_REPORT.md. Ne touche jamais le code source. | `REFACTOR_REPORT.md` |
+| scout | Détecte manifests, langages, outils, hotspots, complexité, dead code, clones et lint best-effort. | `findings.json` |
+| principles-auditor | Applique les principes universels, AI smells et playbooks applicables. | `violations.json` |
+| refactor-executor | Applique uniquement les changements validés par l'utilisateur et autorisés par les règles de sécurité. | `changes.json` |
+| doc-updater | Produit le rapport final et met à jour uniquement la documentation projet. | `REFACTOR_REPORT.md` |
 
----
+## Fichiers produits
 
-## Structure des fichiers produits
-
-```
+```text
 .claude/quality-team/
-  findings.json          ← analyse statique (hotspots, dead code, complexité, lint)
-  violations.json        ← violations qualitatives classifiées (blocking/important/nit/...)
-  changes.json           ← journal des modifications (absent en mode audit-only)
-  baseline_tsc.txt       ← état tsc avant refactoring
-  baseline_biome.json    ← état biome avant refactoring
-  baseline_clippy.json   ← état clippy avant refactoring (si Rust)
-  post_tsc.txt           ← état tsc après refactoring
-  post_biome.json        ← état biome après refactoring
+  project_profile.json       # manifests, langages, playbooks applicables
+  validation_commands.json   # commandes détectées pour ce projet
+  baseline_validation.json   # état avant refactor
+  findings.json              # analyse statique consolidée
+  violations.json            # violations classifiées
+  refactor_plan.md           # plan présenté avant modification
+  changes.json               # changements appliqués/skippés (absent si audit-only)
 
-REFACTOR_REPORT.md       ← rapport lisible à la racine du projet analysé
+REFACTOR_REPORT.md           # rapport lisible à la racine du projet analysé
 ```
 
----
+## Utilisation
 
-## Commandes d'utilisation
-
-```
-# Mode complet : audit + refactoring + rapport (défaut)
-/quality-team src/
-
-# Mode audit uniquement (aucune modification de fichier)
-/quality-team src/ audit-only
-
-# Mode refactoring explicite sur un sous-répertoire
-/quality-team src/components refactor
+```text
+/quality-team .
+/quality-team src audit-only
+/quality-team packages/api refactor
 ```
 
-**Output attendu (mode complet) :**
-```
-✅ Scout terminé — findings.json généré
-✅ Audit terminé :
-   - Blocking : 3
-   - Important : 8
-   - AI smells : 5
-   - Manual verify : 2
-✅ Refactor terminé :
-   - Changements appliqués : 9
-   - Fichiers skippés : 2
-═══════════════════════════════════════
-  QUALITY-TEAM — RAPPORT FINAL
-  TypeScript  : fail → pass  [✅ amélioré]
-  Biome       : 12 → 3       [✅ amélioré]
-  Rapport complet : REFACTOR_REPORT.md
-═══════════════════════════════════════
-```
+En modes `refactor` et `all`, le skill présente toujours un plan avant toute
+modification. Le refactoring ne démarre qu'après validation explicite.
 
----
+## Généraliste par défaut
 
-## Modes disponibles
+Le coeur ne dépend d'aucun stack. Il peut analyser un projet JavaScript,
+TypeScript, Rust, Python, Go, Java, PHP, Ruby, .NET ou mixte tant que des fichiers
+source existent. Si aucune commande de validation n'est détectée, le pipeline
+continue et marque la validation comme `skipped`.
 
-| Mode | Comportement | Quand l'utiliser |
-|------|-------------|-----------------|
-| `audit-only` | Scout + auditor + doc-updater. Aucune modification de code. Génère findings.json + violations.json + rapport. | Première analyse, avant une release, pour avoir une vue sans risque. |
-| `refactor` | Audit, validation utilisateur, puis corrections sûres. | Pour appliquer les corrections après audit. |
-| `all` (défaut) | Chaîne complète de scout à doc-updater. | Usage normal. |
+## Playbooks optionnels
 
-En modes `refactor` et `all`, le skill présente un plan avant modification et attend
-une validation explicite avant de lancer `refactor-executor`.
+Les playbooks ajoutent des règles spécialisées seulement quand le projet le justifie :
 
----
+- `playbooks/react-ts.md` : React / TypeScript / Tauri détecté
+- `playbooks/rust.md` : Rust détecté
 
-## Limitations connues
+Un playbook non applicable ne doit jamais produire de violation.
 
-- **Fichiers sans couverture de tests** → automatiquement placés dans `manual_verify`. L'exécuteur ne les touchera pas. Ajouter des tests, puis relancer `/quality-team`.
+## Limitations
 
-- **Faux positifs knip sur barrel files** → Si ton projet utilise des `index.ts` avec `export *`, installez `@knip/mcp` (voir `MCP_CHECKLIST.md`) pour réduire les faux positifs.
-
-- **Qartez optionnel** → La chaîne fonctionne sans Qartez MCP, mais la précision des hotspots et du blast radius sera moindre. Certaines vérifications de dead code cross-fichiers seront moins fiables.
-
-- **Baseline tsc déjà cassée** → Si `tsc --noEmit` échoue avant le refactoring, l'exécuteur passera quand même mais les validations post-modification seront moins fiables. Corriger la baseline d'abord.
-
-- **Projets sans package.json ni Cargo.toml** → Le scout continuera avec les outils disponibles et loggera les erreurs dans `findings.errors`.
-
----
-
-## Pour améliorer l'analyse
-
-Voir `MCP_CHECKLIST.md` pour configurer :
-- **Qartez MCP** — hotspots précis, blast radius, dead code AST
-- **@knip/mcp** — moins de faux positifs TypeScript
-
-Les règles et playbooks sont embarqués dans `quality-team/references/` et
-`quality-team/playbooks/`. L'orchestrateur les injecte inline dans les prompts :
-les sous-agents ne dépendent pas de fichiers `references/` à la racine du projet cible.
-
----
+- Les fichiers sans contexte suffisant ou trop risqués sont placés en `manual_verify`.
+- Les corrections automatiques restent volontairement petites.
+- Les validations dépendent des scripts et outils présents dans le projet cible.
+- Qartez améliore fortement la précision, mais le skill fonctionne sans MCP.
 
 ## Architecture
 
-```
+```text
 quality-team/
-  SKILL.md          ← tu es ici — orchestrateur principal
-  README.md         ← ce fichier
-  references/       ← règles injectées inline par l'orchestrateur
-    principles.md           ← 10 principes fondamentaux (P1-P10)
-    clean-code-rules.md     ← Clean Code + Clean Architecture + WELC
-    refactoring-rules.md    ← Refactoring (Fowler)
-    ai-smells.md            ← 27 patterns AI-générés
-    safe-refactor.md        ← règles de sécurité pour refactor-executor
-  playbooks/        ← règles stack-spécifiques injectées si pertinentes
-    react-ts.md             ← React + TypeScript + Tauri
-    rust.md                 ← Rust + Tauri backend
+  SKILL.md
+  references/
+    principles.md
+    safe-refactor.md
+    ai-smells.md
+    clean-code-rules.md
+    refactoring-rules.md
+  playbooks/
+    react-ts.md
+    rust.md
   templates/
-    audit-report.md         ← template REFACTOR_REPORT.md
-    refactor-plan.md        ← template du plan avant modification
+    audit-report.md
+    refactor-plan.md
   schemas/
-    findings.schema.json    ← JSON Schema 2020-12 pour findings.json
-    violations.schema.json  ← JSON Schema 2020-12 pour violations.json
-    changes.schema.json     ← JSON Schema 2020-12 pour changes.json
+    findings.schema.json
+    violations.schema.json
+    changes.schema.json
 
-agents/             ← sous-agents spawned par l'orchestrateur
+agents/
   scout.md
   principles-auditor.md
   refactor-executor.md

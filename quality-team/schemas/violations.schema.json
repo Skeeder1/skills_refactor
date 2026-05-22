@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "violations.schema.json",
   "title": "Violations",
-  "description": "Output produit par l'agent principles-auditor — violations qualitatives classifiées par sévérité",
+  "description": "Output produit par principles-auditor : violations qualitatives généralistes classifiées par sévérité.",
   "type": "object",
   "required": ["generated_at", "files_analyzed", "blocking", "important", "nit", "suggestion", "ai_smells", "manual_verify"],
   "properties": {
@@ -38,7 +38,7 @@
     },
     "ai_smells": {
       "type": "array",
-      "description": "Patterns AI-générés détectés (depuis ai-smells.md)",
+      "description": "Patterns générés ou amplifiés par IA détectés depuis ai-smells.md",
       "items": {
         "type": "object",
         "required": ["file", "rule", "description", "severity"],

@@ -1,10 +1,11 @@
-# Playbook — Rust + Tauri backend
-# Utilisé par : principles-auditor (chargé si src-tauri/ existe ou des fichiers *.rs sont présents)
+# Playbook optionnel — Rust + Tauri backend
+# Utilisé par : principles-auditor uniquement si Rust est détecté
 # Référence croisée : principles.md (P1-P10), ai-smells.md
 ---
 
 Ce playbook liste les violations et patterns spécifiques aux projets Rust + Tauri.
 Il complète `principles.md` avec des règles concrètes pour le code Rust côté backend.
+Il ne doit jamais être appliqué à un projet sans Rust détecté.
 
 ---
 

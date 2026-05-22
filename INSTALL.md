@@ -1,161 +1,71 @@
-# Guide d'installation — quality-refactor-team
+# Guide d'installation — quality-team
 
-## Prérequis
+## Prérequis minimaux
 
-Avant d'installer, vérifie que ces outils sont disponibles :
+- Claude Code avec support des skills et agents.
+- Un projet source à analyser.
+- Git recommandé pour permettre les diffs et reverts sûrs.
 
-| Outil | Version min | Vérification |
-|-------|-------------|-------------|
-| Node.js | 20+ | `node --version` |
-| npm | 10+ | `npm --version` |
-| Python | 3.8+ | `python --version` |
-| Rust + Cargo | stable | `cargo --version` _(optionnel, requis si tu analyses des projets Tauri)_ |
-| pip (lizard) | — | `pip install lizard && lizard --version` |
+Aucun langage, runtime ou gestionnaire de paquets n'est obligatoire globalement.
+Les outils de validation sont détectés dans chaque projet cible.
 
----
+## Outils recommandés
 
-## Étape 1 — Installer les CLI requis
+| Outil | Rôle | Statut |
+|-------|------|--------|
+| Qartez MCP | structure, hotspots, blast radius, dead code, clones AST | recommandé |
+| Lizard | complexité multi-langage | recommandé |
+| Linters/typecheckers du projet | validation après refactor | optionnels selon stack |
 
-```bash
-# Biome (lint JS/TS)
-npm install -g @biomejs/biome
+Exemples d'outils stack-spécifiques détectés si présents : scripts npm/pnpm/yarn,
+Cargo, Go, pytest/ruff/mypy, Maven, Gradle, Make, Composer, Bundler, dotnet.
 
-# Lizard (complexité cyclomatique)
-pip install lizard
-
-# Knip (dead code TypeScript) — à installer dans chaque projet analysé
-npm install -D knip
-
-# TypeScript — à installer dans chaque projet analysé
-npm install -D typescript
-```
-
----
-
-## Étape 2 — Installer le skill orchestrateur
-
-Copie le dossier `quality-team/` dans le répertoire des skills Claude Code :
+## Installer le skill
 
 ```powershell
-# Windows
 Copy-Item -Recurse -Force "C:\Projets\skills-refactor\quality-team" "$env:USERPROFILE\.claude\skills\quality-team"
-
-# Vérification
-Get-ChildItem "$env:USERPROFILE\.claude\skills\quality-team"
-# Doit afficher : SKILL.md, README.md, schemas/, references/, playbooks/, templates/
 ```
 
----
-
-## Étape 3 — Installer les agents
-
-Copie les fichiers d'agents dans le répertoire des agents Claude Code :
+## Installer les agents
 
 ```powershell
-# Windows — créer le dossier si absent
 New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.claude\agents"
-
-# Copier les 4 agents
 Copy-Item "C:\Projets\skills-refactor\agents\*.md" "$env:USERPROFILE\.claude\agents\"
+```
 
-# Vérification
+## Références et playbooks
+
+Les références sont embarquées dans `quality-team/` et injectées par
+l'orchestrateur. Les playbooks sont optionnels et chargés seulement si le projet
+cible correspond au stack détecté.
+
+## MCP optionnels
+
+Consulte `MCP_CHECKLIST.md` pour configurer :
+- Qartez MCP, recommandé pour tous les projets
+- @knip/mcp, utile pour projets JavaScript/TypeScript
+- SonarQube MCP, utile pour environnements enterprise
+
+## Utilisation
+
+Dans Claude Code, depuis la racine du projet cible :
+
+```text
+/quality-team .
+/quality-team src audit-only
+/quality-team packages/api refactor
+```
+
+Sorties attendues :
+- `.claude/quality-team/findings.json`
+- `.claude/quality-team/violations.json`
+- `.claude/quality-team/refactor_plan.md`
+- `.claude/quality-team/changes.json` si refactor validé
+- `REFACTOR_REPORT.md`
+
+## Vérification rapide
+
+```powershell
+Test-Path "$env:USERPROFILE\.claude\skills\quality-team\SKILL.md"
 Get-ChildItem "$env:USERPROFILE\.claude\agents"
-# Doit afficher : scout.md, principles-auditor.md, refactor-executor.md, doc-updater.md
-```
-
----
-
-## Étape 4 — Références et playbooks
-
-Les références et playbooks sont embarqués dans le dossier `quality-team/`.
-L'orchestrateur les lit depuis le skill puis les injecte inline dans les prompts
-des sous-agents. Dans l'usage normal, il n'y a rien à copier dans le projet cible.
-
-Optionnellement, tu peux copier ces fichiers sous `.claude/` dans un projet cible
-comme fallback manuel si tu veux que les sous-agents puissent tenter une lecture
-locale lorsque l'injection inline est absente :
-
-```powershell
-# Dans le répertoire du projet à analyser
-$project = "C:\chemin\vers\ton\projet"
-
-New-Item -ItemType Directory -Force -Path "$project\.claude"
-
-# Fallback optionnel : références lues si l'injection inline manque
-Copy-Item -Recurse -Force "C:\Projets\skills-refactor\quality-team\references" "$project\.claude\references"
-
-# Fallback optionnel : playbooks stack-spécifiques
-Copy-Item -Recurse -Force "C:\Projets\skills-refactor\quality-team\playbooks" "$project\.claude\playbooks"
-
-# Vérification
-Get-ChildItem "$project\.claude" -Recurse
-```
-
-> **Note :** Les agents tentent d'abord les règles injectées par l'orchestrateur.
-> Les chemins `.claude/references/` et `references/` ne sont que des fallbacks.
-
----
-
-## Étape 5 — Configurer les MCP (optionnel mais recommandé)
-
-Consulte `MCP_CHECKLIST.md` pour les instructions d'installation de :
-- **Qartez MCP** — hotspots, blast radius, dead code AST (recommandé)
-- **@knip/mcp** — dead code TypeScript avec barrel files (recommandé pour TS/JS)
-
----
-
-## Étape 6 — Utilisation
-
-Dans Claude Code, depuis le répertoire racine du projet à analyser :
-
-```
-# Analyse complète + refactoring (mode par défaut)
-/quality-team src/
-
-# Audit uniquement (pas de modifications)
-/quality-team . audit-only
-
-# Refactoring d'un sous-répertoire
-/quality-team src/components refactor
-
-# Analyse à la racine du projet
-/quality-team . all
-```
-
-**Output attendu :**
-- `.claude/quality-team/findings.json` — résultats d'analyse statique
-- `.claude/quality-team/violations.json` — violations classifiées
-- `.claude/quality-team/changes.json` — journal des modifications (absent en `audit-only`)
-- `REFACTOR_REPORT.md` — rapport complet à la racine du projet
-
----
-
-## Vérification de l'installation
-
-```powershell
-Write-Output "=== Vérification installation quality-team ==="
-
-# Skill
-$skillOk = Test-Path "$env:USERPROFILE\.claude\skills\quality-team\SKILL.md"
-Write-Output "Skill SKILL.md : $(if ($skillOk) { '✅' } else { '❌ MANQUANT' })"
-
-# Agents
-foreach ($agent in @("scout", "principles-auditor", "refactor-executor", "doc-updater")) {
-  $ok = Test-Path "$env:USERPROFILE\.claude\agents\$agent.md"
-  Write-Output "Agent $agent.md : $(if ($ok) { '✅' } else { '❌ MANQUANT' })"
-}
-
-# CLI
-foreach ($item in @(
-  @{ Name = "biome";  Cmd = "npx biome --version" },
-  @{ Name = "lizard"; Cmd = "lizard --version" },
-  @{ Name = "tsc";    Cmd = "npx tsc --version" }
-)) {
-  try {
-    $v = Invoke-Expression $item.Cmd 2>$null
-    Write-Output "CLI $($item.Name) : ✅ ($v)"
-  } catch {
-    Write-Output "CLI $($item.Name) : ❌ NON INSTALLÉ"
-  }
-}
 ```

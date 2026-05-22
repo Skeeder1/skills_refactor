@@ -1,296 +1,163 @@
 ---
 name: quality-team
 description: >
-  Lance une chaîne de 4 sous-agents pour analyser, nettoyer, et documenter
-  un codebase. Spawn séquentiellement : scout (analyse statique) →
-  principles-auditor (règles clean code + AI smells) → refactor-executor
-  (corrections sûres avec validation) → doc-updater (JSDoc + rapport final).
-  Use when: "nettoie mon code", "audit qualité", "refactor", "code mort",
-  "trop de bugs pour pas de raison". Do not use: ajout de features, corrections
-  de bugs spécifiques, génération de tests from scratch.
+  Lance une chaîne de sous-agents généralistes pour auditer, planifier,
+  refactorer prudemment et documenter n'importe quel codebase. Le skill détecte
+  le stack au runtime, charge seulement les playbooks pertinents, puis spawn :
+  scout → principles-auditor → refactor-executor → doc-updater.
+  Use when: "audit qualité", "nettoie le code", "refactor", "code mort",
+  "trop de problèmes structurels". Do not use: ajout de feature, correction
+  d'un bug précis, génération de tests from scratch.
 when_to_use: >
-  Déclencher sur : "quality-team", "nettoie le code", "audit", "refactor",
-  "code mort", "mauvaise qualité", "trop de problèmes structurels".
+  Déclencher sur : "quality-team", "audit", "refactor", "code mort",
+  "mauvaise qualité", "nettoie le code", "problèmes structurels".
   Ne pas déclencher sur : ajout de feature, fix de bug précis, écriture de tests.
 argument-hint: "[scope] [mode]"
 arguments:
-  - scope     # chemin relatif à analyser (défaut: src/)
+  - scope     # chemin relatif à analyser (défaut: .)
   - mode      # "audit-only" | "refactor" | "all" (défaut: all)
 allowed-tools:
   - Read
-  - Bash(New-Item *)
-  - Bash(mkdir *)
-  - Bash(npx tsc --noEmit *)
-  - Bash(npx biome check *)
-  - Bash(cargo clippy *)
+  - Bash
 user-invocable: true
 ---
 
-## Comportement
+## Rôle du skill
+
+Tu es l'orchestrateur. Reste léger : détecte le contexte, charge les références,
+spawne les agents, vérifie les fichiers de sortie et présente les décisions à
+l'utilisateur. Ne porte pas la logique d'audit détaillée dans ce fichier.
 
 Lis le scope et le mode depuis `$ARGUMENTS`.
 
-- Si `$ARGUMENTS` est vide → `scope=src/`, `mode=all`
-- Si un seul argument → c'est le scope, `mode=all`
-- Si deux arguments → premier=scope, deuxième=mode
-- Valeurs valides pour mode : `audit-only`, `refactor`, `all`
+- Si `$ARGUMENTS` est vide : `scope=.`, `mode=all`
+- Si un seul argument : c'est le scope, `mode=all`
+- Si deux arguments : premier=scope, deuxième=mode
+- Modes valides : `audit-only`, `refactor`, `all`
 
-Matérialise ces valeurs comme variables PowerShell **avant toute commande** :
+Remplace toujours `<scope>` et `<mode>` par leurs valeurs littérales dans les
+prompts envoyés aux sous-agents.
 
-```powershell
-$scope = "<scope parsé depuis $ARGUMENTS>"
-$mode = "<mode parsé depuis $ARGUMENTS>"
-```
+## Phase 0 — Préparation et détection
 
-Dans tous les prompts de spawn, remplace `<scope>` et `<mode>` par ces valeurs
-littérales. Ne laisse jamais `$scope`, `$mode`, `<scope>` ou `<mode>` non résolus
-dans un prompt envoyé à un sous-agent.
+Crée `.claude/quality-team` si absent.
 
-## Principe de consultation
+Détecte le projet sans supposer de stack :
+- manifests : `package.json`, `Cargo.toml`, `pyproject.toml`, `setup.py`,
+  `requirements.txt`, `go.mod`, `pom.xml`, `build.gradle`, `Makefile`,
+  `composer.json`, `Gemfile`, fichiers `.sln` / `.csproj`
+- langages dominants depuis les extensions présentes dans `<scope>`
+- commandes de validation disponibles : scripts `test`, `lint`, `typecheck`,
+  `check`, `build`, ou commandes natives dont le manifest/config existe
 
-Après l'audit, présenter un plan d'action basé sur `templates/refactor-plan.md`.
-Ne jamais lancer `refactor-executor` sans validation explicite de l'utilisateur.
-Si la validation est refusée ou ambiguë, passer en rapport uniquement.
+Enregistre :
+- `.claude/quality-team/project_profile.json`
+- `.claude/quality-team/validation_commands.json`
+- `.claude/quality-team/baseline_validation.json`
 
----
+Si aucune validation n'est détectée, note une validation `skipped` et continue.
 
-## Phase 0 — Préparation
+## Phase 0b — Références
 
-verifier le répertoire de travail, le creer si il n'existe pas, et s'assurer que les outils nécessaires sont installés.:
-Prevenir l'utilisateur si des prerequis sont manquants.
-```powershell
-New-Item -ItemType Directory -Force -Path ".claude/quality-team"
-```
+Lis et garde disponibles pour les prompts :
+- `references/principles.md`
+- `references/safe-refactor.md`
+- `references/ai-smells.md`
+- `templates/refactor-plan.md`
+- `references/clean-code-rules.md` si le contexte le permet
+- `references/refactoring-rules.md` si le contexte le permet
 
-Enregistre les métriques de base **avant tout changement** :
+Charge les playbooks uniquement si le profil projet les justifie :
+- `playbooks/react-ts.md` seulement pour React / TypeScript / Tauri détecté
+- `playbooks/rust.md` seulement pour Rust détecté
 
-```powershell
-# Baseline TypeScript
-npx tsc --noEmit 2>&1 | Out-File ".claude/quality-team/baseline_tsc.txt" -Encoding utf8
-
-# Baseline Biome
-npx biome check "$scope" --reporter json 2>$null | Out-File ".claude/quality-team/baseline_biome.json" -Encoding utf8
-
-# Baseline Rust (si applicable)
-if (Test-Path "src-tauri") {
-  cargo clippy --message-format json 2>$null | Out-File ".claude/quality-team/baseline_clippy.json" -Encoding utf8
-}
-```
-
-Note l'état baseline (pass/fail) — il sera comparé à la fin.
-
----
-
-## Phase 0b — Chargement des références depuis le skill
-
-Le skill possède ses propres fichiers de règles dans `references/` et `playbooks/`.
-Lis-les maintenant avec l'outil `Read` (chemins relatifs depuis ce fichier SKILL.md) :
-
-**Obligatoires :**
-- `references/principles.md` → règles P1-P10
-- `references/safe-refactor.md` → règles de sécurité pour l'exécuteur
-- `references/ai-smells.md` → 27 patterns AI-générés
-- `templates/refactor-plan.md` → format du plan présenté avant modification
-
-**Optionnels selon le projet :**
-- `references/clean-code-rules.md` → si tu as de la place dans le contexte
-- `references/refactoring-rules.md` → si tu as de la place dans le contexte
-- `playbooks/react-ts.md` → si des fichiers `.tsx` sont dans le scope
-- `playbooks/rust.md` → si `src-tauri/` existe dans le projet
-
-Ces contenus seront passés **inline** dans les prompts de spawn des agents qui en ont besoin.
-Les agents n'ont pas accès aux fichiers du skill — tout ce qu'ils savent vient de leur prompt.
-
----
+Un playbook optionnel ne doit jamais produire de violation sur un projet qui ne
+correspond pas à son stack.
 
 ## Phase 1 — Scout
 
-Spawne le sous-agent `scout` avec ce prompt :
+Spawne `scout` :
 
-```
+```text
 Analyse le scope : <scope>.
 Mode quality-team : <mode>.
+Lis .claude/quality-team/project_profile.json et validation_commands.json.
 Produit : .claude/quality-team/findings.json
 Contrainte : lecture seule, aucune modification de fichier.
-Écris une ligne de résumé dans stdout quand tu as terminé.
 ```
 
-> Note : l'agent `scout` a ses instructions complètes chargées depuis ~/.claude/agents/scout.md.
-> Le prompt de spawn n'a besoin que du scope et du chemin de sortie.
-
-**Attends la fin.**
-
-Vérifie que `.claude/quality-team/findings.json` existe :
-- Si présent → affiche : `✅ Scout terminé — findings.json généré`
-- Si absent → affiche : `❌ Erreur : findings.json absent. Le scout a échoué.` et **arrête**.
-
----
+Attends la fin. Si `findings.json` est absent, arrête avec un message clair.
 
 ## Phase 2 — Principles auditor
 
-Spawne le sous-agent `principles-auditor` avec ce prompt (inclure le contenu des références lues en Phase 0b) :
+Spawne `principles-auditor` avec `findings.json`, les références universelles et
+les playbooks optionnels chargés en Phase 0b :
 
-```
+```text
 Analyse le scope : <scope>.
 Mode quality-team : <mode>.
-Lis .claude/quality-team/findings.json (produit par scout).
+Lis .claude/quality-team/findings.json.
 Produit : .claude/quality-team/violations.json
 Contrainte : lecture seule, aucune modification de fichier.
-
-=== PRINCIPES FONDAMENTAUX (P1-P10) ===
-<inclure ici le contenu complet de references/principles.md lu en Phase 0b>
-
-=== AI SMELLS (27 PATTERNS) ===
-<inclure ici le contenu complet de references/ai-smells.md lu en Phase 0b>
-
-[Si le contexte le permet, inclure également :]
-=== CLEAN CODE RULES ===
-<contenu de references/clean-code-rules.md>
-
-=== REFACTORING RULES ===
-<contenu de references/refactoring-rules.md>
-
-[Si .tsx détecté dans le scope :]
-=== PLAYBOOK REACT + TYPESCRIPT ===
-<contenu de playbooks/react-ts.md>
-
-[Si src-tauri/ existe :]
-=== PLAYBOOK RUST + TAURI ===
-<contenu de playbooks/rust.md>
+Applique d'abord les principes universels, puis seulement les playbooks applicables.
 ```
 
-**Attends la fin.**
+Attends la fin. Si `violations.json` est absent, arrête avec un message clair.
 
-Vérifie que `.claude/quality-team/violations.json` existe.
-Lis violations.json et affiche le résumé :
-```
-✅ Audit terminé :
-   - Blocking : N
-   - Important : N
-   - Nits : N
-   - AI smells : N
-   - Manual verify : N
-```
+## Phase 2b — Plan et validation utilisateur
 
-Si `mode = "audit-only"` → passer par la Phase 2b comme plan de recommandations,
-puis **sauter la Phase 3** et continuer avec la Phase 4 pour générer
-`REFACTOR_REPORT.md` depuis `findings.json`, `violations.json` et `refactor_plan.md`.
+Construis `.claude/quality-team/refactor_plan.md` depuis
+`templates/refactor-plan.md`, `findings.json`, `violations.json` et
+`validation_commands.json`.
 
----
+Présente le plan avant toute modification. En modes `refactor` et `all`, ne lance
+jamais `refactor-executor` sans validation explicite de l'utilisateur (`oui`,
+`valide`, `continue`, `lance`). Toute réponse absente, ambiguë ou négative passe
+le run en rapport uniquement.
 
-## Phase 2b — Plan d'action et validation utilisateur
+En mode `audit-only`, affiche le plan comme recommandations et saute la Phase 3.
 
-Lis `templates/refactor-plan.md`, puis construis `.claude/quality-team/refactor_plan.md`
-depuis `findings.json` et `violations.json`. Affiche un résumé court du plan à
-l'utilisateur avant toute modification.
+## Phase 3 — Refactor executor
 
-Si `mode = "audit-only"` :
-- ne demande pas d'autorisation pour modifier le code
-- affiche le plan comme recommandations seulement
-- saute la Phase 3
-- continue avec la Phase 4 en rapport uniquement
+Seulement si `mode != audit-only` et si le plan a été validé, spawne
+`refactor-executor` :
 
-Si `mode ≠ "audit-only"` :
-- attends la réponse utilisateur avant de lancer la Phase 3
-- si la réponse n'est pas explicitement positive (`oui`, `valide`, `continue`, `lance`) :
-  - ne lance pas `refactor-executor`
-  - note `refactor_approved=false` dans le résumé
-  - continue avec la Phase 4 en rapport uniquement
-- si la réponse est explicitement positive :
-  - note `refactor_approved=true`
-  - lance la Phase 3
-
----
-
-## Phase 3 — Refactor executor (seulement si mode ≠ "audit-only" ET plan validé)
-
-Spawne le sous-agent `refactor-executor` avec ce prompt (inclure safe-refactor lu en Phase 0b) :
-
-```
+```text
 Analyse le scope : <scope>.
 Mode quality-team : <mode>.
 Plan validé par l'utilisateur : oui.
-Lis .claude/quality-team/refactor_plan.md avant toute modification.
-Lis .claude/quality-team/violations.json (produit par principles-auditor).
-Lis .claude/quality-team/findings.json pour les données de hotspots et blast radius.
+Lis .claude/quality-team/refactor_plan.md.
+Lis .claude/quality-team/violations.json.
+Lis .claude/quality-team/findings.json.
+Lis .claude/quality-team/validation_commands.json.
 Produit : .claude/quality-team/changes.json
-
-Applique uniquement les findings blocking + important qui passent le safety gate.
-Applique uniquement les changements prévus dans refactor_plan.md.
-Ne touche JAMAIS les fichiers dans violations.manual_verify.
-Valide avec tsc/biome/clippy après chaque fichier modifié.
-Si validation échoue : revert et log dans changes.skipped avec raison détaillée.
-
-=== RÈGLES DE SÉCURITÉ POUR LE REFACTORING ===
-<inclure ici le contenu complet de references/safe-refactor.md lu en Phase 0b>
+Applique uniquement les changements prévus dans refactor_plan.md et autorisés par safe-refactor.md.
+Valide avec les commandes détectées, si elles existent.
+Si validation échoue : revert le fichier modifié et log dans changes.skipped.
 ```
-
-**Attends la fin.**
-
-Vérifie que `.claude/quality-team/changes.json` existe.
-Lis changes.json et affiche :
-```
-✅ Refactor terminé :
-   - Changements appliqués : N
-   - Fichiers skippés : N
-```
-
----
 
 ## Phase 4 — Doc updater
 
-Spawne le sous-agent `doc-updater` avec ce prompt :
+Spawne `doc-updater` :
 
-```
+```text
 Analyse le scope : <scope>.
 Mode quality-team : <mode>.
-Lis .claude/quality-team/changes.json (produit par refactor-executor).
-Si mode est "audit-only" OU si le plan n'a pas été validé, changes.json n'existe pas —
-lis aussi .claude/quality-team/findings.json, .claude/quality-team/violations.json
-et .claude/quality-team/refactor_plan.md, puis génère le rapport depuis ces fichiers uniquement.
-Met à jour le JSDoc des fonctions modifiées.
-Si des modules ont été déplacés ou renommés, mets à jour AGENTS.md.
-Si des commandes dans README.md ne correspondent plus, mets-les à jour.
+Lis findings.json, violations.json, refactor_plan.md, validation_commands.json.
+Lis changes.json seulement s'il existe.
 Génère REFACTOR_REPORT.md à la racine du projet analysé.
-Ne modifie jamais le code source (*.ts, *.tsx, *.rs, *.js, *.jsx).
+Ne modifie jamais le code source ; seules les docs peuvent changer.
 ```
 
-**Attends la fin.**
+## Phase 5 — Synthèse finale
 
----
+Relance les commandes de validation détectées si un refactor a été appliqué.
+Compare `baseline_validation.json` et les résultats post-refactor.
 
-## Phase 5 — Validation finale
-
-Re-run les vérificateurs :
-
-```powershell
-# Post-refactor TypeScript
-npx tsc --noEmit 2>&1 | Out-File ".claude/quality-team/post_tsc.txt" -Encoding utf8
-
-# Post-refactor Biome
-npx biome check "$scope" --reporter json 2>$null | Out-File ".claude/quality-team/post_biome.json" -Encoding utf8
-```
-
-Compare avec la baseline et affiche :
-
-```
-═══════════════════════════════════════
-  QUALITY-TEAM — RAPPORT FINAL
-═══════════════════════════════════════
-  Scope analysé : <scope>
-  Mode : <mode>
-
-  TypeScript  : <baseline> → <post>  [✅ amélioré / ❌ dégradé / ➡ stable]
-  Biome       : <baseline> → <post>  [✅ / ❌ / ➡]
-  Clippy      : <baseline> → <post>  [✅ / ❌ / ➡ / ⏭ non applicable]
-
-  Rapport complet : REFACTOR_REPORT.md
-
-  Changements appliqués : N  |  Skippés : N  (audit-only : 0 | 0)
-  Fichiers à traiter manuellement : N
-    → <liste des fichiers manual_verify>
-
-  Pour améliorer l'analyse future :
-    → Voir MCP_CHECKLIST.md (Qartez + @knip/mcp)
-═══════════════════════════════════════
-```
+Affiche :
+- scope et mode
+- validation avant → après pour chaque commande détectée
+- chemin du rapport
+- changements appliqués / skippés
+- fichiers en vérification manuelle
+- playbooks chargés

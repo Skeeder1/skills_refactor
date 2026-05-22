@@ -2,17 +2,26 @@
 
 ## Scope
 
-- Scope analyse : {{scope}}
-- Mode demande : {{mode}}
-- Baseline : TypeScript {{tsc_status}}, Biome {{biome_status}}, Clippy {{clippy_status}}
+- Scope analysé : {{scope}}
+- Mode demandé : {{mode}}
+- Langages détectés : {{languages}}
+- Playbooks chargés : {{playbooks}}
 
-## Changements proposes
+## Validations prévues
 
-| Fichier | Severite | Probleme | Changement prevu | Risque | Validation |
+| Nom | Commande | Statut baseline | Raison |
+|-----|----------|-----------------|--------|
+| {{validation_name}} | `{{validation_command}}` | {{baseline_status}} | {{reason}} |
+
+Si aucune commande n'est détectée, indiquer : validation automatique indisponible.
+
+## Changements proposés
+
+| Fichier | Sévérité | Problème | Changement prévu | Risque | Validation |
 |---------|----------|----------|------------------|--------|------------|
 | {{file}} | {{severity}} | {{problem}} | {{planned_change}} | {{risk}} | {{validation}} |
 
-## Fichiers non touches
+## Fichiers non touchés
 
 | Fichier | Raison |
 |---------|--------|
@@ -20,6 +29,7 @@
 
 ## Limites
 
-- Changements hors scope explicitement exclus.
-- Fichiers generes, lockfiles et fichiers marques `DO NOT EDIT` exclus.
-- Fichiers `manual_verify` exclus jusqu'a validation humaine separee.
+- Changements hors scope exclus.
+- Fichiers générés, vendored, lockfiles et `DO NOT EDIT` exclus.
+- Fichiers `manual_verify` exclus jusqu'à validation humaine séparée.
+- Aucun refactor ne démarre sans validation explicite de l'utilisateur.

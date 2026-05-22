@@ -1,10 +1,11 @@
-# Playbook — React + TypeScript + Tauri
-# Utilisé par : principles-auditor (chargé si le projet contient src-tauri/ ou .tsx)
+# Playbook optionnel — React + TypeScript + Tauri
+# Utilisé par : principles-auditor uniquement si React / TypeScript / Tauri est détecté
 # Référence croisée : principles.md (P1-P10), ai-smells.md
 ---
 
 Ce playbook liste les violations et patterns spécifiques aux projets React + TypeScript + Tauri.
 Il complète `principles.md` avec des règles concrètes liées à ce stack.
+Il ne doit jamais être appliqué à un projet qui ne correspond pas à ce profil.
 
 ---
 

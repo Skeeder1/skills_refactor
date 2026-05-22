@@ -1,126 +1,73 @@
 # Safe refactor rules
 # Utilisé par : refactor-executor
-# Ce fichier définit ce qui peut être modifié automatiquement et ce qui est interdit.
+# Règles universelles, indépendantes du langage et du framework.
 ---
 
-## Catégorie 1 — Toujours sûr (sans confirmation)
+Le refactor automatique doit être conservateur. Les playbooks peuvent ajouter des
+cas spécifiques, mais seulement pour un stack détecté et seulement si le plan les
+liste explicitement.
 
-Ces opérations peuvent être appliquées directement sans demander de validation humaine :
+## Toujours sûr après confirmation outillage
 
-- **Supprimer du code mort confirmé** : symbole avec 0 importeurs vérifié cross-fichiers
-  (confirmation par `qartez_unused` ou `knip`, pas seulement par analyse locale)
-- **Supprimer les logs de debug** : `console.log`, `console.error`, `console.warn`,
-  `dbg!()`, `print!()` en dehors des fichiers de test
-- **Supprimer les blocs commentés** : blocs de code commenté > 3 lignes consécutives
-- **Extraire une constante nommée** : magic number ou magic string dans le même fichier,
-  sans changer la logique ou la signature
-- **Ajouter ou corriger un JSDoc/docstring** : sans modifier la signature de la fonction
+Ces changements restent locaux et ne doivent pas modifier le comportement public :
 
----
+- Supprimer du code mort confirmé par une analyse cross-fichiers ou Qartez.
+- Supprimer des logs de debug non fonctionnels, hors audit/sécurité/observabilité.
+- Supprimer des blocs de code commenté de plus de 3 lignes.
+- Extraire une constante nommée dans le même fichier.
+- Corriger la documentation publique sans changer signature ni logique.
 
-## Catégorie 2 — Sûr avec validation post-modification
+## Sûr avec validation post-modification
 
-Ces opérations doivent passer la validation (`tsc --noEmit && biome check` ou `cargo clippy`)
-avant d'être considérées comme appliquées. Si la validation échoue → revert immédiat.
+Ces opérations nécessitent les validations détectées dans
+`.claude/quality-team/validation_commands.json` :
 
-- **Renommer un symbole exporté** + mettre à jour tous les importeurs dans le même passage
-  (utiliser `qartez_refs` pour lister tous les usages, puis `MultiEdit` pour le rename)
-- **Extraire une fonction** dans le même fichier (sans changer le comportement observable)
-- **Remplacer `array.push(x)`** par `setArray([...array, x])` dans un contexte React
-- **Ajouter des types TypeScript manquants** sur des paramètres ou retours de fonctions
-  (doit passer `tsc --noEmit`)
-- **Déplacer une fonction** vers un fichier `utils` + mettre à jour tous les imports
-- **Remplacer un `any`** par un type précis + narrowing (doit passer `tsc --noEmit`)
-- **Ajouter une fonction de cleanup** à un `useEffect` qui crée un abonnement ou timer
+- Renommer un symbole et mettre à jour tous les usages confirmés.
+- Extraire une petite fonction locale sans changer l'interface publique.
+- Déplacer une fonction interne vers un module voisin en mettant à jour tous les imports.
+- Remplacer une valeur magique par une constante déjà introduite localement.
+- Simplifier une condition ou un garde sans changer les cas couverts.
 
----
+Si aucune validation projet n'est disponible, ces changements peuvent être proposés
+dans le plan mais doivent être traités comme risque plus élevé.
 
-## Catégorie 3 — Jamais sans confirmation explicite de l'utilisateur
+## Jamais sans validation humaine séparée
 
-Ces opérations ont un impact trop large ou trop risqué pour être automatisées :
+- Changer une signature publique.
+- Modifier un type ou format de retour public.
+- Supprimer un fichier entier.
+- Modifier authentification, autorisation, chiffrement, secrets, sessions ou permissions.
+- Modifier migrations, schémas de base de données ou formats persistés.
+- Modifier les tests au-delà d'un import/chemin nécessaire à un rename.
+- Modifier la configuration de build, packaging, CI ou déploiement.
+- Introduire une nouvelle dépendance.
+- Changer une API externe ou un protocole réseau.
 
-- Changer la signature d'une fonction publique (paramètres, ordre, types)
-- Modifier le type de retour d'une fonction
-- Supprimer un fichier entier (même si apparemment inutilisé)
-- Modifier des fichiers d'authentification, sécurité, tokens, sessions
-- Toucher les migrations ou le schéma de base de données
-- Modifier les fichiers de tests au-delà de la mise à jour des imports
-- Changer la configuration de build (`vite.config`, `tsconfig`, `Cargo.toml` sections critiques)
-- Toucher des fichiers avec `// DO NOT EDIT` ou `// GENERATED`
+## Jamais toucher
 
----
+- Fichiers générés ou vendored.
+- Répertoires de build/cache (`dist/`, `build/`, `target/`, `.next/`, `out/`,
+  `.cache/`, `vendor/`, équivalents).
+- Lockfiles.
+- Fichiers marqués `DO NOT EDIT` ou `GENERATED`.
+- Fichiers listés dans `violations.manual_verify`.
 
-## Catégorie 4 — Jamais toucher (liste noire absolue)
+## Protocole par fichier
 
-Ces fichiers ne doivent JAMAIS être modifiés par refactor-executor, quelle que soit la violation :
+1. Vérifier la blacklist et `manual_verify`.
+2. Vérifier le blast radius avec Qartez pour les hotspots si disponible.
+3. Lire le fichier et identifier le plus petit changement suffisant.
+4. Appliquer uniquement ce qui est listé dans `refactor_plan.md`.
+5. Lancer les validations applicables détectées.
+6. Si une validation échoue, revert uniquement le fichier touché et logguer le skip.
+7. Continuer avec le fichier suivant.
 
-- `dist/`, `build/`, `.next/`, `out/` (fichiers générés)
-- `*.generated.*`, `*.gen.ts`, `*.gen.rs`
-- `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `Cargo.lock`
-- Tout fichier marqué `// DO NOT EDIT` ou `/* DO NOT EDIT */`
-- Tout fichier listé dans `violations.manual_verify`
-- Fichiers de migrations (`migrations/`, `*.migration.ts`, `*.up.sql`)
+## Raisons de skip standard
 
----
-
-## Protocole par fichier (5 étapes obligatoires)
-
-Pour chaque fichier à modifier dans `violations.blocking` + `violations.important` :
-
-**Étape 1 — Vérification du safety gate**
-```
-SI fichier dans violations.manual_verify → SKIP, log dans changes.skipped avec raison "manual-verify"
-SI fichier dans la liste noire absolue → SKIP, log dans changes.skipped avec raison "blacklisted"
-```
-
-**Étape 2 — Vérification du blast radius (si Qartez disponible)**
-```
-SI fichier dans findings.hotspots avec score > 5 :
-  → appeler qartez_impact(fichier)
-  → SI impact.transitive_dependents > 20 ET changement non trivial (pas dead code) :
-    → SKIP, log dans changes.skipped avec raison "blast-radius-too-high"
-  → Sinon : noter le blast_radius dans changes.applied
-```
-
-**Étape 3 — Cross-fichiers (si rename)**
-```
-SI le changement est un rename cross-fichiers ET Qartez disponible :
-  → appeler qartez_refs(symbole) pour lister tous les usages
-  → renommer dans tous les fichiers en un seul passage avec MultiEdit
-```
-
-**Étape 4 — Appliquer le changement**
-```
-Appliquer le changement le plus petit possible.
-Ne pas profiter de l'ouverture du fichier pour nettoyer d'autres zones non listées.
-```
-
-**Étape 5 — Validation**
-```
-TypeScript/JS :
-  → npx tsc --noEmit
-  → npx biome check <fichier>
-
-Rust :
-  → cargo clippy
-
-SI validation OK :
-  → log dans changes.applied avec validated: true, tools_passed: [...]
-
-SI validation KO :
-  → inspecter git diff pour comprendre l'échec
-  → revert le fichier à son état d'origine
-  → log dans changes.skipped avec raison "reverted:tsc-failed|biome-failed|clippy-failed"
-    et inclure le message d'erreur dans validation_output
-
-Passer au fichier suivant.
-```
-
----
-
-## Règle de progression
-
-Ne jamais bloquer la chaîne sur un seul fichier. Si un fichier échoue :
-1. Log l'échec dans `changes.skipped` avec raison détaillée
-2. Continuer avec le fichier suivant
-3. Laisser le `doc-updater` et le rapport final noter les fichiers skipped
+- `manual-verify`
+- `blacklisted`
+- `blast-radius-too-high`
+- `not-in-approved-plan`
+- `missing-safe-refactor-rules`
+- `validation-unavailable`
+- `reverted:validation-failed`

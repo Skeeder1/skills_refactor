@@ -1,241 +1,199 @@
-# Principes fondamentaux — quality-refactor-team
+# Principes fondamentaux — quality-team
 # Utilisé par : principles-auditor
-# Ces 10 principes sont la référence pour classifier les violations dans violations.json
+# Référence universelle, indépendante du langage et du framework.
 ---
 
-## P1 — Single Responsibility (Responsabilité unique)
+Ces principes s'appliquent à tout codebase. Les détails propres à un langage,
+framework ou runtime doivent vivre dans un playbook optionnel, jamais dans ce
+fichier.
 
-**Règle :** Un fichier, une fonction, un module = une seule raison de changer.
-Un composant React ne doit pas gérer à la fois la data fetching, la logique métier et le rendu.
-Une fonction ne doit pas mixer setup, validation, computation et side effects.
+## P1 — Responsabilité unique
+
+**Règle :** Un fichier, module, type ou fonction doit avoir une raison principale
+de changer.
 
 **Violations détectables :**
-- Fichier > 300 lignes avec des imports de domaines différents (UI + store + réseau)
-- Fonction qui retourne une valeur ET produit un side effect (mutation d'état + calcul)
-- Hook React qui fait plus d'une chose (fetch + transform + format)
-- Composant avec `useState` pour 5+ valeurs non liées
+- Module mélangeant orchestration, accès aux données, rendu, validation et I/O.
+- Fonction qui fait setup, validation, calcul, persistance et reporting.
+- Fichier très long avec plusieurs domaines métier ou techniques non liés.
 
 **Fix standard :**
-- Découper par responsabilité : state → store/hook, fetch → service, rendu → composant
-- Extraire les phases : validation → `validateX()`, transformation → `transformX()`, save → `saveX()`
-- Séparer commandes (mutations) et queries (lectures)
+- Extraire les responsabilités en modules ou fonctions nommées.
+- Séparer orchestration, règles métier, accès externe et présentation.
+- Garder les interfaces publiques petites et intentionnelles.
 
 **Détection automatique :**
-- `qartez_hotspots` (score élevé = fort couplage + complexité)
-- `lizard` : NLOC > 300, CCN > 10
-- `qartez_deps` : fichier avec > 10 dépendances directes
+- Hotspots Qartez, complexité Lizard, graphe de dépendances, nombre d'exports.
 
----
+## P2 — Source unique de vérité
 
-## P2 — Single Source of Truth (Source unique de vérité)
-
-**Règle :** Un même état ne doit exister qu'en un seul endroit autoritaire.
-Jamais de synchronisation manuelle entre deux stores ou entre le frontend et le backend.
+**Règle :** Une information métier ou technique doit avoir une source autoritaire.
+Les copies, caches et vues dérivées doivent être explicitement synchronisés ou
+recalculables.
 
 **Violations détectables :**
-- État dupliqué entre Zustand et `useState` local
-- State Tauri/IPC mis à jour optimistement sans reconciliation depuis le backend Rust
-- Variable locale qui "miroir" un champ de store sans mécanisme de sync
-- Même valeur calculée dans deux endroits différents (deux `useMemo` identiques)
+- Même valeur maintenue dans deux structures sans source autoritaire claire.
+- Cache mis à jour manuellement sans invalidation.
+- État dérivé stocké au lieu d'être calculé.
+- Configuration dupliquée entre code, fichier et environnement.
 
 **Fix standard :**
-- Dériver l'état affiché depuis une seule source : `const total = useStore(s => s.items.length)`
-- Après une mutation IPC, toujours refetch ou utiliser la réponse du backend comme nouvelle source
-- Supprimer les `useState` qui dupliquent des champs de store
+- Choisir la source autoritaire.
+- Dériver les vues secondaires.
+- Centraliser la config et documenter les règles d'invalidation.
 
 **Détection automatique :**
-- `qartez_clones` (logique de state dupliquée)
-- Grep : `useState.*store\.|store\..*useState` dans le même fichier
+- Clones Qartez/Lizard, duplication de constantes, co-change fréquent.
 
----
+## P3 — Contrats explicites aux frontières
 
-## P3 — Immutabilité dans les contextes réactifs
+**Règle :** Toute donnée venant d'une frontière externe doit être validée,
+normalisée ou typée selon les conventions du langage.
 
-**Règle :** Ne jamais muter directement un état React, un store Zustand (sans Immer),
-ou une prop passée en paramètre. Toujours retourner un nouvel objet/tableau.
+**Frontières :**
+- API, fichiers, base de données, CLI, variables d'environnement, réseau,
+  messages inter-processus, sérialisation, entrée utilisateur.
 
 **Violations détectables :**
-- `state.items.push(item)` sur du state React
-- `obj.field = value` sur un objet reçu en prop
-- `array[0] = newValue` dans un setter Zustand sans Immer
-- `Object.assign(state, newState)` sur le state directement
+- Donnée externe utilisée directement comme donnée interne fiable.
+- Cast/assertion sans validation runtime lorsque le langage le nécessite.
+- Parsing sans gestion d'erreur.
+- Format implicite non documenté.
 
 **Fix standard :**
-- `setItems(prev => [...prev, item])`
-- Retourner un nouvel objet : `{ ...state, field: value }`
-- Utiliser Immer dans Zustand pour les mutations complexes
+- Introduire un parseur, validateur, DTO ou type domaine.
+- Refuser ou normaliser les données invalides à la frontière.
+- Documenter le contrat public.
 
 **Détection automatique :**
-- `biome: noDirectMutation`
-- Grep : `\.push\(|\.splice\(|\.shift\(` dans des contextes de state React
+- Linters, typecheckers, grep sur parse/cast, règles sécurité, tests de contrat.
 
----
+## P4 — Intégrité des mutations et invariants
 
-## P4 — Contrats typés aux frontières
-
-**Règle :** Toute donnée qui entre dans le système depuis l'extérieur (API REST, IPC Tauri,
-localStorage, URL params, env vars, formulaires) doit être validée et typée explicitement.
-Jamais de `as SomeType` sur des données dynamiques sans validation.
+**Règle :** Toute mutation doit préserver les invariants du domaine et rester
+localisée. Les états partagés ou observables doivent être modifiés de manière
+contrôlée.
 
 **Violations détectables :**
-- `const data = await fetch(url).then(r => r.json())` sans schema Zod/Valibot
-- `JSON.parse(localStorage.getItem('x'))` sans try/catch ni schema
-- `as User` ou `as ApiResponse` sur une réponse externe sans parse
-- `any` sur des paramètres de fonctions d'API publique
-- `tsconfig.json` sans `strict: true`
-- Commande Tauri `#[tauri::command]` sans retour `Result<T, E>`
+- Mutation directe d'un objet partagé sans passer par l'API propriétaire.
+- Mise à jour partielle qui laisse un invariant cassé en cas d'erreur.
+- Donnée modifiée en place alors que les consommateurs attendent une nouvelle valeur.
 
 **Fix standard :**
-- Zod : `const UserSchema = z.object({...}); const user = UserSchema.parse(data)`
-- TypeScript strict : `"strict": true` dans tsconfig
-- Rust : toutes les commandes Tauri retournent `Result<T, String>` ou `Result<T, AppError>`
+- Centraliser les mutations dans une fonction ou méthode domaine.
+- Utiliser des transactions, copies contrôlées ou garde-fous selon le langage.
+- Valider les invariants avant et après mutation critique.
 
 **Détection automatique :**
-- `biome` : no-explicit-any
-- `tsc --strict`
-- Grep : `as [A-Z][a-zA-Z]+\b` sur des résultats de fetch/parse
+- Linters, analyse AST, tests d'invariants, revue des hotspots.
 
----
+## P5 — Erreurs explicites
 
-## P5 — Erreurs explicites (pas de continuation silencieuse)
-
-**Règle :** Une erreur doit toujours soit être propagée, soit être traitée explicitement
-avec un type d'erreur domain. Jamais de `catch {}` vide, jamais d'erreur avalée.
+**Règle :** Une erreur doit être traitée, propagée ou convertie en erreur domaine.
+Elle ne doit jamais disparaître silencieusement.
 
 **Violations détectables :**
-- `catch (e) {}` vide
-- `catch (e) { console.log(e) }` sans propagation
-- `.catch(() => null)` ou `.catch(() => undefined)` sur des opérations critiques
-- `let _ = result_qui_peut_echouer` en Rust
-- `unwrap()` / `expect()` sur des chemins utilisateur en Rust
-- Fonctions async sans aucune gestion d'erreur
+- Catch vide ou qui retourne une valeur neutre sans justification.
+- Résultat d'opération critique ignoré.
+- Exception/panic/abort possible sur entrée utilisateur.
+- Message d'erreur générique qui perd la cause utile.
 
 **Fix standard :**
-- Propager : `catch (e) { logger.error(e); throw e }`
-- Retourner un Result : `type Result<T> = { ok: true; data: T } | { ok: false; error: string }`
-- Rust : `result?` ou `result.map_err(|e| AppError::from(e))`
+- Propager l'erreur ou la mapper vers un type/format domaine.
+- Logger seulement si le log est actionnable et ne remplace pas la propagation.
+- Ajouter une stratégie de fallback explicite pour les erreurs acceptées.
 
 **Détection automatique :**
-- `clippy::unwrap_used`, `clippy::expect_used`
-- `biome` : no-console (pour détecter les catch avec seulement console)
-- Grep : `catch\s*\(\w+\)\s*\{\s*\}` (catch vide)
+- Linters, analyse des blocs catch/match/result, tests d'échec.
 
----
+## P6 — Effets de bord isolés
 
-## P6 — UI pure (render = f(state))
-
-**Règle :** Le rendu d'un composant React doit être une fonction pure de son state et ses props.
-Pas de side effects dans le corps du composant. Pas d'appels réseau en dehors de `useEffect`.
-Pas de mutation de refs pendant le rendu.
+**Règle :** Les effets de bord doivent être explicites, localisés et séparés du
+calcul pur quand c'est raisonnable.
 
 **Violations détectables :**
-- Appel de fonction avec side effect dans le corps du composant (hors handlers et useEffect)
-- `fetch()` appelé directement dans le rendu sans `useEffect`
-- Mutation d'une ref ou d'une variable externe pendant le rendu
-- Logique conditionnelle qui change l'ordre des hooks (hooks dans des conditions)
+- Fonction de calcul qui écrit un fichier, modifie un global ou déclenche du réseau.
+- I/O cachée dans un getter, formatteur ou validateur.
+- Ordre d'exécution implicite nécessaire au bon fonctionnement.
 
 **Fix standard :**
-- Déplacer tout side effect dans `useEffect` ou un event handler
-- Dériver les valeurs calculées avec `useMemo` plutôt que de les calculer pendant le rendu
+- Séparer calcul pur et orchestration.
+- Injecter les dépendances externes.
+- Nommer les fonctions à effet avec des verbes explicites.
 
 **Détection automatique :**
-- `eslint-plugin-react-hooks` : rules-of-hooks
-- `biome` : lint/correctness/useHookAtTopLevel
+- Appels I/O dans fonctions de transformation, graphes d'appels, revue des noms.
 
----
+## P7 — Duplication maîtrisée
 
-## P7 — DRY avec seuil pragmatique
-
-**Règle :** 
-- 2 occurrences identiques → surveiller
-- 3 occurrences identiques → extraire obligatoirement
-- Ne pas extraire si l'abstraction crée plus de couplage que de valeur
+**Règle :** Deux occurrences similaires sont un signal, trois occurrences
+indiquent souvent une extraction. L'abstraction ne doit pas créer plus de
+couplage que la duplication.
 
 **Violations détectables :**
-- 3+ fonctions avec la même structure interne (même try/catch, même validation)
-- 3+ composants avec le même `useEffect` copié-collé
-- 3+ fichiers avec le même bloc de formatage de date ou de validation
+- Même séquence validation → transformation → sauvegarde dans plusieurs fichiers.
+- Constantes ou messages métier copiés.
+- Tests ou handlers dupliquant la même logique.
 
 **Fix standard :**
-- Extraire en fonction partagée dans `utils/` ou hook custom
-- Ne pas abstraire si les 3 occurrences sont dans des domaines différents (couplage artificiel)
+- Extraire une fonction, un module ou un type commun si le concept est réellement partagé.
+- Garder séparé si les domaines divergent.
 
 **Détection automatique :**
-- `qartez_clones` (duplication AST)
-- `lizard --duplicate`
-
----
+- `qartez_clones`, Lizard duplicate, recherche de constantes.
 
 ## P8 — Nommage intentionnel
 
-**Règle :**
-- Fonctions : verbes d'action (`fetchUser`, `validateEmail`, `formatDate`)
-- Booléens : préfixe `is`, `has`, `can`, `should` (`isLoading`, `hasError`)
-- Pas de noms génériques : `data`, `result`, `item`, `handler`, `doStuff`, `process`
-- Un terme par concept dans tout le codebase (`user` ou `account`, pas les deux)
+**Règle :** Les noms doivent exposer l'intention métier ou technique, pas seulement
+la forme de la donnée.
 
 **Violations détectables :**
-- Variables nommées `data`, `result`, `temp`, `val`, `x`, `obj` dans des fonctions longues
-- Fonctions nommées `handleData`, `processItem`, `manageState`
-- Booléens nommés `loaded`, `error` (sans préfixe `is`/`has`)
-- Même concept nommé différemment selon les fichiers
+- Noms vagues dans du code non trivial : `data`, `value`, `result`, `tmp`, `manager`.
+- Même concept nommé différemment selon les modules.
+- Fonction nommée comme un événement alors qu'elle transforme ou persiste.
 
 **Fix standard :**
-- Renommer avec des noms qui expriment l'intention métier
-- Choisir un vocabulaire commun et l'appliquer dans tout le codebase
+- Renommer selon le vocabulaire du domaine.
+- Utiliser un terme unique par concept.
+- Préférer des verbes précis pour les actions.
 
 **Détection automatique :**
-- `qartez_grep` : rechercher les noms génériques connus
-- Revue manuelle pour la cohérence du vocabulaire
+- Recherche de noms génériques, revue de cohérence, refs Qartez avant rename.
 
----
+## P9 — Petite taille et faible complexité
 
-## P9 — Fonctions petites et lisibles
+**Règle :** Les unités de code doivent rester lisibles, testables et peu
+imbriquées.
 
-**Règle :**
-- ≤ 40 lignes par fonction
-- ≤ 3 niveaux d'imbrication (if dans for dans if = déjà problématique)
-- ≤ 4 paramètres (sinon utiliser un objet de configuration)
-- Early return pour les cas d'erreur (pas de `else` après un `return` ou `throw`)
-
-**Violations détectables :**
-- Fonctions > 40 lignes (NLOC)
-- Complexité cyclomatique > 10 (CCN)
-- > 4 paramètres de fonction
-- > 3 niveaux d'imbrication (calculé par lizard)
+**Seuils par défaut :**
+- Fonction > 40 lignes : à inspecter.
+- Complexité cyclomatique > 10 : à inspecter.
+- Paramètres > 4 : envisager un objet/struct de paramètres.
+- Imbrication > 3 niveaux : préférer gardes ou extraction.
 
 **Fix standard :**
-- Extraire les phases : garde → validation → traitement → retour
-- Early return : `if (!isValid) return null` en tête de fonction
-- Grouper les paramètres en un objet typé : `function fn(opts: { a: string; b: number })`
+- Extraire les phases.
+- Remplacer l'imbrication par des gardes.
+- Introduire un objet de paramètres si cela clarifie l'appel.
 
 **Détection automatique :**
-- `lizard` : `--CCN 10 --length 40 --arguments 4`
-- `qartez_hotspots` (CCN élevé)
-
----
+- Lizard, Qartez hotspots, linters de complexité.
 
 ## P10 — Documentation vivante
 
-**Règle :**
-- JSDoc sur toutes les fonctions exportées (au minimum `@param` et `@returns`)
-- `AGENTS.md` à jour quand un module est ajouté, déplacé ou supprimé
-- Les commentaires expliquent le POURQUOI (contrainte, décision), jamais le QUOI
-- Pas de commentaires `// TODO` sans ticket ou date associée
+**Règle :** La documentation doit expliquer les contrats, décisions et contraintes
+qui ne sont pas évidents dans le code.
 
 **Violations détectables :**
-- Fonction exportée sans JSDoc
-- Paramètres de fonction sans type annoté ET sans JSDoc
-- `// TODO` sans référence (ticket, issue, date)
-- `AGENTS.md` qui liste des modules qui n'existent plus
-- Commentaires qui narrent le code (`// get the user and return it`)
+- API publique sans contrat compréhensible.
+- README ou AGENTS qui référence des chemins obsolètes.
+- Commentaire qui décrit le code au lieu d'expliquer le pourquoi.
+- TODO sans contexte, propriétaire ou condition de résolution.
 
 **Fix standard :**
-- Ajouter JSDoc minimal : `/** @param userId {string} @returns {Promise<User>} */`
-- Supprimer ou convertir les commentaires narratifs
-- Mettre à jour AGENTS.md après chaque changement de structure
+- Documenter les APIs publiques dans le format idiomatique du langage.
+- Mettre à jour la documentation quand un module bouge.
+- Supprimer les commentaires narratifs inutiles.
 
 **Détection automatique :**
-- `biome` (jsdoc lint rules si configuré)
-- `qartez_outline` (surfaces les fonctions exportées sans doc)
-- Grep : `^export (function|const|class)` sans ligne `\*\*` précédente
+- Recherche d'exports publics non documentés, liens cassés, TODO sans contexte.

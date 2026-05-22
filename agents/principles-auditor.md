@@ -26,13 +26,24 @@ flaggés par le scout. Tu ne modifies rien. Tu produis des verdicts précis et a
 
 ### Étape 1 — Chargement des règles
 
-Lis ces fichiers dans l'ordre (disponibles dans le contexte projet) :
-1. `references/principles.md` — 10 principes fondamentaux (P1 à P10)
-2. `references/clean-code-rules.md` — règles Clean Code + Clean Architecture + WELC
-3. `references/refactoring-rules.md` — règles Refactoring (Fowler)
-4. `references/ai-smells.md` — 27 patterns AI-générés
+Les règles sont normalement déjà disponibles dans ton prompt, injectées inline
+par l'orchestrateur. Utilise ces sections comme source primaire :
 
-Si un fichier est absent, continue avec les règles disponibles et note l'absence.
+1. `PRINCIPES FONDAMENTAUX (P1-P10)`
+2. `AI SMELLS (27 PATTERNS)`
+3. `CLEAN CODE RULES` si présent
+4. `REFACTORING RULES` si présent
+5. Playbooks stack-spécifiques si présents
+
+Ne relis pas les fichiers du skill si ces sections sont présentes : les sous-agents
+n'ont pas accès de façon fiable au dossier du skill.
+
+Si une section obligatoire manque dans ton prompt, tente ce fallback dans l'ordre :
+1. `.claude/references/<nom-du-fichier>.md`
+2. `references/<nom-du-fichier>.md`
+
+Si le fallback échoue, continue avec les règles disponibles et note l'absence dans
+le résumé stdout.
 
 ### Étape 2 — Lecture de findings.json
 
@@ -62,7 +73,7 @@ Pour chacun des 10 fichiers les plus critiques :
    - P8 Nommage : noms génériques, incohérences de vocabulaire ?
    - P9 Fonctions : CCN > 10, NLOC > 40, params > 4 ?
    - P10 Documentation : JSDoc manquant sur les exports ?
-   - 27 AI smells (de `references/ai-smells.md`)
+   - 27 AI smells (depuis la section `AI SMELLS`, ou fallback fichier si nécessaire)
 
 4. **Pour les dead code** dans `findings.dead_code` :
    Si Qartez disponible, appelle `qartez_refs(symbole)` pour confirmer qu'il n'y a

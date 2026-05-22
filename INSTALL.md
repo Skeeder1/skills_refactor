@@ -42,7 +42,7 @@ Copy-Item -Recurse -Force "C:\Projets\skills-refactor\quality-team" "$env:USERPR
 
 # Vérification
 Get-ChildItem "$env:USERPROFILE\.claude\skills\quality-team"
-# Doit afficher : SKILL.md, README.md, schemas/
+# Doit afficher : SKILL.md, README.md, schemas/, references/, playbooks/, templates/
 ```
 
 ---
@@ -65,10 +65,15 @@ Get-ChildItem "$env:USERPROFILE\.claude\agents"
 
 ---
 
-## Étape 4 — Copier les références dans le projet à analyser
+## Étape 4 — Références et playbooks
 
-Les agents lisent `references/` et `playbooks/` depuis le contexte du projet analysé.
-Copie-les dans le projet cible sous `.claude/` :
+Les références et playbooks sont embarqués dans le dossier `quality-team/`.
+L'orchestrateur les lit depuis le skill puis les injecte inline dans les prompts
+des sous-agents. Dans l'usage normal, il n'y a rien à copier dans le projet cible.
+
+Optionnellement, tu peux copier ces fichiers sous `.claude/` dans un projet cible
+comme fallback manuel si tu veux que les sous-agents puissent tenter une lecture
+locale lorsque l'injection inline est absente :
 
 ```powershell
 # Dans le répertoire du projet à analyser
@@ -76,18 +81,18 @@ $project = "C:\chemin\vers\ton\projet"
 
 New-Item -ItemType Directory -Force -Path "$project\.claude"
 
-# Références obligatoires (lues par principles-auditor)
-Copy-Item -Recurse -Force "C:\Projets\skills-refactor\references" "$project\.claude\references"
+# Fallback optionnel : références lues si l'injection inline manque
+Copy-Item -Recurse -Force "C:\Projets\skills-refactor\quality-team\references" "$project\.claude\references"
 
-# Playbooks spécifiques au stack (choisir selon le projet)
-Copy-Item -Recurse -Force "C:\Projets\skills-refactor\playbooks" "$project\.claude\playbooks"
+# Fallback optionnel : playbooks stack-spécifiques
+Copy-Item -Recurse -Force "C:\Projets\skills-refactor\quality-team\playbooks" "$project\.claude\playbooks"
 
 # Vérification
 Get-ChildItem "$project\.claude" -Recurse
 ```
 
-> **Note :** Si le projet est analysé depuis son répertoire racine, les agents chercheront
-> `references/` et `playbooks/` dans `.claude/`. Adapte si ta structure diffère.
+> **Note :** Les agents tentent d'abord les règles injectées par l'orchestrateur.
+> Les chemins `.claude/references/` et `references/` ne sont que des fallbacks.
 
 ---
 
@@ -120,7 +125,7 @@ Dans Claude Code, depuis le répertoire racine du projet à analyser :
 **Output attendu :**
 - `.claude/quality-team/findings.json` — résultats d'analyse statique
 - `.claude/quality-team/violations.json` — violations classifiées
-- `.claude/quality-team/changes.json` — journal des modifications
+- `.claude/quality-team/changes.json` — journal des modifications (absent en `audit-only`)
 - `REFACTOR_REPORT.md` — rapport complet à la racine du projet
 
 ---

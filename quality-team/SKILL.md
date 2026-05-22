@@ -35,24 +35,35 @@ Lis le scope et le mode depuis `$ARGUMENTS`.
 - Si deux arguments → premier=scope, deuxième=mode
 - Valeurs valides pour mode : `audit-only`, `refactor`, `all`
 
+Matérialise ces valeurs comme variables PowerShell **avant toute commande** :
+
+```powershell
+$scope = "<scope parsé depuis $ARGUMENTS>"
+$mode = "<mode parsé depuis $ARGUMENTS>"
+```
+
+Dans tous les prompts de spawn, remplace `<scope>` et `<mode>` par ces valeurs
+littérales. Ne laisse jamais `$scope`, `$mode`, `<scope>` ou `<mode>` non résolus
+dans un prompt envoyé à un sous-agent.
+
 ---
 
 ## Phase 0 — Préparation
 
 verifier le répertoire de travail, le creer si il n'existe pas, et s'assurer que les outils nécessaires sont installés.:
 Prevenir l'utilisateur si des prerequis sont manquants.
-```bash
+```powershell
 New-Item -ItemType Directory -Force -Path ".claude/quality-team"
 ```
 
 Enregistre les métriques de base **avant tout changement** :
 
-```bash
+```powershell
 # Baseline TypeScript
 npx tsc --noEmit 2>&1 | Out-File ".claude/quality-team/baseline_tsc.txt" -Encoding utf8
 
 # Baseline Biome
-npx biome check $scope --reporter json 2>$null | Out-File ".claude/quality-team/baseline_biome.json" -Encoding utf8
+npx biome check "$scope" --reporter json 2>$null | Out-File ".claude/quality-team/baseline_biome.json" -Encoding utf8
 
 # Baseline Rust (si applicable)
 if (Test-Path "src-tauri") {
@@ -91,8 +102,9 @@ Spawne le sous-agent `scout` avec ce prompt :
 
 ```
 Analyse le scope : <scope>.
+Mode quality-team : <mode>.
 Produit : .claude/quality-team/findings.json
-Mode : lecture seule, aucune modification de fichier.
+Contrainte : lecture seule, aucune modification de fichier.
 Écris une ligne de résumé dans stdout quand tu as terminé.
 ```
 
@@ -113,9 +125,10 @@ Spawne le sous-agent `principles-auditor` avec ce prompt (inclure le contenu des
 
 ```
 Analyse le scope : <scope>.
+Mode quality-team : <mode>.
 Lis .claude/quality-team/findings.json (produit par scout).
 Produit : .claude/quality-team/violations.json
-Mode : lecture seule, aucune modification de fichier.
+Contrainte : lecture seule, aucune modification de fichier.
 
 === PRINCIPES FONDAMENTAUX (P1-P10) ===
 <inclure ici le contenu complet de references/principles.md lu en Phase 0b>
@@ -152,7 +165,8 @@ Lis violations.json et affiche le résumé :
    - Manual verify : N
 ```
 
-Si `mode = "audit-only"` → **sauter les phases 3 et 4, aller directement à la Phase 5.**
+Si `mode = "audit-only"` → **sauter uniquement la Phase 3** et continuer avec la
+Phase 4 pour générer `REFACTOR_REPORT.md` depuis `findings.json` et `violations.json`.
 
 ---
 
@@ -162,6 +176,7 @@ Spawne le sous-agent `refactor-executor` avec ce prompt (inclure safe-refactor l
 
 ```
 Analyse le scope : <scope>.
+Mode quality-team : <mode>.
 Lis .claude/quality-team/violations.json (produit par principles-auditor).
 Lis .claude/quality-team/findings.json pour les données de hotspots et blast radius.
 Produit : .claude/quality-team/changes.json
@@ -193,8 +208,10 @@ Spawne le sous-agent `doc-updater` avec ce prompt :
 
 ```
 Analyse le scope : <scope>.
+Mode quality-team : <mode>.
 Lis .claude/quality-team/changes.json (produit par refactor-executor).
-Si mode était "audit-only", changes.json n'existe pas — génère le rapport depuis violations.json uniquement.
+Si mode est "audit-only", changes.json n'existe pas — lis aussi .claude/quality-team/findings.json
+et .claude/quality-team/violations.json, puis génère le rapport depuis ces deux fichiers uniquement.
 Met à jour le JSDoc des fonctions modifiées.
 Si des modules ont été déplacés ou renommés, mets à jour AGENTS.md.
 Si des commandes dans README.md ne correspondent plus, mets-les à jour.
@@ -210,12 +227,12 @@ Ne modifie jamais le code source (*.ts, *.tsx, *.rs, *.js, *.jsx).
 
 Re-run les vérificateurs :
 
-```bash
+```powershell
 # Post-refactor TypeScript
 npx tsc --noEmit 2>&1 | Out-File ".claude/quality-team/post_tsc.txt" -Encoding utf8
 
 # Post-refactor Biome
-npx biome check $scope --reporter json 2>$null | Out-File ".claude/quality-team/post_biome.json" -Encoding utf8
+npx biome check "$scope" --reporter json 2>$null | Out-File ".claude/quality-team/post_biome.json" -Encoding utf8
 ```
 
 Compare avec la baseline et affiche :
@@ -233,7 +250,7 @@ Compare avec la baseline et affiche :
 
   Rapport complet : REFACTOR_REPORT.md
 
-  Changements appliqués : N  |  Skippés : N
+  Changements appliqués : N  |  Skippés : N  (audit-only : 0 | 0)
   Fichiers à traiter manuellement : N
     → <liste des fichiers manual_verify>
 

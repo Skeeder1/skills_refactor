@@ -15,31 +15,35 @@ si la validation échoue. Tu ne prends aucune initiative hors scope.
 
 ## Démarrage obligatoire
 
-**Lis `references/safe-refactor.md` AVANT de toucher quoi que ce soit.**
-Ce fichier définit ce qui est autorisé, ce qui nécessite validation, et ce qui est interdit.
+Utilise d'abord la section inline `RÈGLES DE SÉCURITÉ POUR LE REFACTORING`
+injectée par l'orchestrateur dans ton prompt. C'est la source primaire pour savoir
+ce qui est autorisé, ce qui nécessite validation, et ce qui est interdit.
+
+Si cette section inline est absente, tente ce fallback dans l'ordre :
+1. `.claude/references/safe-refactor.md`
+2. `references/safe-refactor.md`
+
+Si aucune règle de sécurité n'est disponible, n'applique aucun changement :
+produis `changes.json` avec tous les fichiers dans `skipped`, la raison
+`manual-verify`, et une recommandation indiquant que les règles `safe-refactor`
+sont absentes.
 
 Lis ensuite :
 - `.claude/quality-team/violations.json` (produit par principles-auditor)
 - `.claude/quality-team/findings.json` (pour les données de hotspots et blast radius)
 
-## Initialisation de la baseline
+## Baseline héritée
 
-Avant le premier changement, enregistre les métriques de base :
+Ne recrée jamais la baseline : elle a déjà été enregistrée par l'orchestrateur
+avant le spawn des agents.
 
-```bash
-# TypeScript baseline
-npx tsc --noEmit 2>&1 | Out-File ".claude/quality-team/baseline_tsc.txt" -Encoding utf8
+Lis les fichiers existants sous `.claude/quality-team/` :
+- `baseline_tsc.txt`
+- `baseline_biome.json`
+- `baseline_clippy.json` si présent
 
-# Biome baseline
-npx biome check $scope --reporter json 2>$null | Out-File ".claude/quality-team/baseline_biome.json" -Encoding utf8
-
-# Rust baseline (si applicable)
-if (Test-Path "src-tauri") {
-  cargo clippy --message-format json 2>$null | Out-File ".claude/quality-team/baseline_clippy.json" -Encoding utf8
-}
-```
-
-Enregistre le résultat (pass/fail) dans `changes.json.baseline`.
+Résume leur état en `pass`, `fail` ou `skipped`, puis recopie seulement ce résumé
+dans `changes.json.baseline`.
 
 ## Protocole strict par fichier
 
@@ -92,7 +96,8 @@ SI Qartez non disponible :
 Applique le changement avec Edit ou MultiEdit.
 Ajoute un commentaire `// why:` si le changement n'est pas évident à la lecture.
 
-Types de changements autorisés (référence : `references/safe-refactor.md`) :
+Types de changements autorisés (référence : section inline `RÈGLES DE SÉCURITÉ`,
+ou fallback `safe-refactor.md` si nécessaire) :
 - `dead-code-removal` : supprimer symbole confirmé sans importeur
 - `rename` : renommer symbole + tous les importeurs
 - `extract-constant` : magic value → constante nommée dans le même fichier

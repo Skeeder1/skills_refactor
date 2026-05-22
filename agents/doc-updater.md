@@ -24,8 +24,21 @@ Tu ne modifies jamais le code source — uniquement les fichiers de documentatio
 
 ### Étape 1 — Chargement des changements
 
-Lis `.claude/quality-team/changes.json` (produit par refactor-executor).
-Construis la liste des fichiers dans `changes.applied`.
+Vérifie d'abord si `.claude/quality-team/changes.json` existe.
+
+**Si `changes.json` existe :**
+- Lis `.claude/quality-team/changes.json` (produit par refactor-executor).
+- Construis la liste des fichiers dans `changes.applied`.
+- Continue avec les étapes 2 à 5.
+
+**Si `changes.json` n'existe pas :**
+- Mode `audit-only` détecté.
+- Lis `.claude/quality-team/findings.json`.
+- Lis `.claude/quality-team/violations.json`.
+- Pose mentalement `changes.applied = []` et `changes.skipped = []`.
+- Ne tente pas de mise à jour JSDoc, AGENTS.md ou README.md.
+- Passe directement à l'Étape 5 et génère `REFACTOR_REPORT.md` depuis
+  `findings.json` + `violations.json` uniquement.
 
 ### Étape 2 — Mise à jour du JSDoc par fichier modifié
 

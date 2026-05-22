@@ -22,7 +22,7 @@ nettoient, et documentent un codebase de façon autonome et reproductible.
 .claude/quality-team/
   findings.json          ← analyse statique (hotspots, dead code, complexité, lint)
   violations.json        ← violations qualitatives classifiées (blocking/important/nit/...)
-  changes.json           ← journal des modifications (applied + skipped + baseline)
+  changes.json           ← journal des modifications (absent en mode audit-only)
   baseline_tsc.txt       ← état tsc avant refactoring
   baseline_biome.json    ← état biome avant refactoring
   baseline_clippy.json   ← état clippy avant refactoring (si Rust)
@@ -72,8 +72,8 @@ REFACTOR_REPORT.md       ← rapport lisible à la racine du projet analysé
 
 | Mode | Comportement | Quand l'utiliser |
 |------|-------------|-----------------|
-| `audit-only` | Scout + auditor seulement. Aucune modification. Génère findings.json + violations.json + rapport. | Première analyse, avant une release, pour avoir une vue sans risque. |
-| `refactor` | Toute la chaîne, mais saute le scout si findings.json existe déjà. | Pour relancer l'exécuteur après avoir corrigé des erreurs manuellement. |
+| `audit-only` | Scout + auditor + doc-updater. Aucune modification de code. Génère findings.json + violations.json + rapport. | Première analyse, avant une release, pour avoir une vue sans risque. |
+| `refactor` | Chaîne complète avec exécution des corrections sûres. | Pour appliquer les corrections après audit. |
 | `all` (défaut) | Chaîne complète de scout à doc-updater. | Usage normal. |
 
 ---
@@ -98,6 +98,10 @@ Voir `MCP_CHECKLIST.md` pour configurer :
 - **Qartez MCP** — hotspots précis, blast radius, dead code AST
 - **@knip/mcp** — moins de faux positifs TypeScript
 
+Les règles et playbooks sont embarqués dans `quality-team/references/` et
+`quality-team/playbooks/`. L'orchestrateur les injecte inline dans les prompts :
+les sous-agents ne dépendent pas de fichiers `references/` à la racine du projet cible.
+
 ---
 
 ## Architecture
@@ -106,6 +110,17 @@ Voir `MCP_CHECKLIST.md` pour configurer :
 quality-team/
   SKILL.md          ← tu es ici — orchestrateur principal
   README.md         ← ce fichier
+  references/       ← règles injectées inline par l'orchestrateur
+    principles.md           ← 10 principes fondamentaux (P1-P10)
+    clean-code-rules.md     ← Clean Code + Clean Architecture + WELC
+    refactoring-rules.md    ← Refactoring (Fowler)
+    ai-smells.md            ← 27 patterns AI-générés
+    safe-refactor.md        ← règles de sécurité pour refactor-executor
+  playbooks/        ← règles stack-spécifiques injectées si pertinentes
+    react-ts.md             ← React + TypeScript + Tauri
+    rust.md                 ← Rust + Tauri backend
+  templates/
+    audit-report.md         ← template REFACTOR_REPORT.md
   schemas/
     findings.schema.json    ← JSON Schema 2020-12 pour findings.json
     violations.schema.json  ← JSON Schema 2020-12 pour violations.json
@@ -116,18 +131,4 @@ agents/             ← sous-agents spawned par l'orchestrateur
   principles-auditor.md
   refactor-executor.md
   doc-updater.md
-
-references/         ← règles lues par principles-auditor
-  principles.md           ← 10 principes fondamentaux (P1-P10)
-  clean-code-rules.md     ← Clean Code + Clean Architecture + WELC
-  refactoring-rules.md    ← Refactoring (Fowler)
-  ai-smells.md            ← 27 patterns AI-générés
-  safe-refactor.md        ← règles de sécurité pour refactor-executor
-
-playbooks/          ← règles stack-spécifiques
-  react-ts.md       ← React + TypeScript + Tauri
-  rust.md           ← Rust + Tauri backend
-
-templates/
-  audit-report.md   ← template REFACTOR_REPORT.md
 ```

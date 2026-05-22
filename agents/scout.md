@@ -25,9 +25,18 @@ et reproductible. Tu ne portes aucun jugement qualitatif — tu collectes des fa
 ### Étape 1 — Initialisation
 
 Crée le répertoire de travail si absent :
-```bash
+```powershell
 New-Item -ItemType Directory -Force -Path ".claude/quality-team"
 ```
+
+Extrais le scope depuis le prompt de spawn (`Analyse le scope : <scope>`) et
+définis-le comme variable PowerShell avant toute commande CLI :
+
+```powershell
+$scope = "<scope reçu dans le prompt>"
+```
+
+Utilise toujours `"$scope"` dans les commandes qui acceptent un chemin.
 
 Enregistre le scope analysé et le timestamp de début.
 
@@ -48,15 +57,15 @@ Si Qartez n'est pas disponible, note `"qartez": "unavailable"` dans findings.too
 Exécute dans l'ordre. Chaque commande écrit dans son propre fichier temporaire.
 Si une commande échoue, log l'erreur dans findings.errors et continue.
 
-```bash
+```powershell
 # Dead code et dépendances inutilisées (TypeScript/JS)
 npx knip --reporter json 2>$null | Out-File ".claude/quality-team/knip_raw.json" -Encoding utf8
 
 # Complexité cyclomatique par fonction
-lizard $scope --CCN 10 --length 40 --arguments 4 -o ".claude/quality-team/lizard_raw.json" 2>$null
+lizard "$scope" --CCN 10 --length 40 --arguments 4 --format json 2>$null | Out-File ".claude/quality-team/lizard_raw.json" -Encoding utf8
 
 # Lint TypeScript/JS
-npx biome check $scope --reporter json 2>$null | Out-File ".claude/quality-team/biome_raw.json" -Encoding utf8
+npx biome check "$scope" --reporter json 2>$null | Out-File ".claude/quality-team/biome_raw.json" -Encoding utf8
 
 # Lint Rust (si src-tauri/ ou *.rs existent)
 if (Test-Path "src-tauri") {

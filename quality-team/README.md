@@ -73,8 +73,11 @@ REFACTOR_REPORT.md       ← rapport lisible à la racine du projet analysé
 | Mode | Comportement | Quand l'utiliser |
 |------|-------------|-----------------|
 | `audit-only` | Scout + auditor + doc-updater. Aucune modification de code. Génère findings.json + violations.json + rapport. | Première analyse, avant une release, pour avoir une vue sans risque. |
-| `refactor` | Chaîne complète avec exécution des corrections sûres. | Pour appliquer les corrections après audit. |
+| `refactor` | Audit, validation utilisateur, puis corrections sûres. | Pour appliquer les corrections après audit. |
 | `all` (défaut) | Chaîne complète de scout à doc-updater. | Usage normal. |
+
+En modes `refactor` et `all`, le skill présente un plan avant modification et attend
+une validation explicite avant de lancer `refactor-executor`.
 
 ---
 
@@ -121,6 +124,7 @@ quality-team/
     rust.md                 ← Rust + Tauri backend
   templates/
     audit-report.md         ← template REFACTOR_REPORT.md
+    refactor-plan.md        ← template du plan avant modification
   schemas/
     findings.schema.json    ← JSON Schema 2020-12 pour findings.json
     violations.schema.json  ← JSON Schema 2020-12 pour violations.json

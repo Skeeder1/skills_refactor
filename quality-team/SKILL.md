@@ -46,6 +46,12 @@ Dans tous les prompts de spawn, remplace `<scope>` et `<mode>` par ces valeurs
 littérales. Ne laisse jamais `$scope`, `$mode`, `<scope>` ou `<mode>` non résolus
 dans un prompt envoyé à un sous-agent.
 
+## Principe de consultation
+
+Après l'audit, présenter un plan d'action basé sur `templates/refactor-plan.md`.
+Ne jamais lancer `refactor-executor` sans validation explicite de l'utilisateur.
+Si la validation est refusée ou ambiguë, passer en rapport uniquement.
+
 ---
 
 ## Phase 0 — Préparation
@@ -84,6 +90,7 @@ Lis-les maintenant avec l'outil `Read` (chemins relatifs depuis ce fichier SKILL
 - `references/principles.md` → règles P1-P10
 - `references/safe-refactor.md` → règles de sécurité pour l'exécuteur
 - `references/ai-smells.md` → 27 patterns AI-générés
+- `templates/refactor-plan.md` → format du plan présenté avant modification
 
 **Optionnels selon le projet :**
 - `references/clean-code-rules.md` → si tu as de la place dans le contexte
@@ -165,23 +172,51 @@ Lis violations.json et affiche le résumé :
    - Manual verify : N
 ```
 
-Si `mode = "audit-only"` → **sauter uniquement la Phase 3** et continuer avec la
-Phase 4 pour générer `REFACTOR_REPORT.md` depuis `findings.json` et `violations.json`.
+Si `mode = "audit-only"` → passer par la Phase 2b comme plan de recommandations,
+puis **sauter la Phase 3** et continuer avec la Phase 4 pour générer
+`REFACTOR_REPORT.md` depuis `findings.json`, `violations.json` et `refactor_plan.md`.
 
 ---
 
-## Phase 3 — Refactor executor (seulement si mode ≠ "audit-only")
+## Phase 2b — Plan d'action et validation utilisateur
+
+Lis `templates/refactor-plan.md`, puis construis `.claude/quality-team/refactor_plan.md`
+depuis `findings.json` et `violations.json`. Affiche un résumé court du plan à
+l'utilisateur avant toute modification.
+
+Si `mode = "audit-only"` :
+- ne demande pas d'autorisation pour modifier le code
+- affiche le plan comme recommandations seulement
+- saute la Phase 3
+- continue avec la Phase 4 en rapport uniquement
+
+Si `mode ≠ "audit-only"` :
+- attends la réponse utilisateur avant de lancer la Phase 3
+- si la réponse n'est pas explicitement positive (`oui`, `valide`, `continue`, `lance`) :
+  - ne lance pas `refactor-executor`
+  - note `refactor_approved=false` dans le résumé
+  - continue avec la Phase 4 en rapport uniquement
+- si la réponse est explicitement positive :
+  - note `refactor_approved=true`
+  - lance la Phase 3
+
+---
+
+## Phase 3 — Refactor executor (seulement si mode ≠ "audit-only" ET plan validé)
 
 Spawne le sous-agent `refactor-executor` avec ce prompt (inclure safe-refactor lu en Phase 0b) :
 
 ```
 Analyse le scope : <scope>.
 Mode quality-team : <mode>.
+Plan validé par l'utilisateur : oui.
+Lis .claude/quality-team/refactor_plan.md avant toute modification.
 Lis .claude/quality-team/violations.json (produit par principles-auditor).
 Lis .claude/quality-team/findings.json pour les données de hotspots et blast radius.
 Produit : .claude/quality-team/changes.json
 
 Applique uniquement les findings blocking + important qui passent le safety gate.
+Applique uniquement les changements prévus dans refactor_plan.md.
 Ne touche JAMAIS les fichiers dans violations.manual_verify.
 Valide avec tsc/biome/clippy après chaque fichier modifié.
 Si validation échoue : revert et log dans changes.skipped avec raison détaillée.
@@ -210,8 +245,9 @@ Spawne le sous-agent `doc-updater` avec ce prompt :
 Analyse le scope : <scope>.
 Mode quality-team : <mode>.
 Lis .claude/quality-team/changes.json (produit par refactor-executor).
-Si mode est "audit-only", changes.json n'existe pas — lis aussi .claude/quality-team/findings.json
-et .claude/quality-team/violations.json, puis génère le rapport depuis ces deux fichiers uniquement.
+Si mode est "audit-only" OU si le plan n'a pas été validé, changes.json n'existe pas —
+lis aussi .claude/quality-team/findings.json, .claude/quality-team/violations.json
+et .claude/quality-team/refactor_plan.md, puis génère le rapport depuis ces fichiers uniquement.
 Met à jour le JSDoc des fonctions modifiées.
 Si des modules ont été déplacés ou renommés, mets à jour AGENTS.md.
 Si des commandes dans README.md ne correspondent plus, mets-les à jour.

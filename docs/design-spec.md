@@ -1,4 +1,10 @@
-# Mission : quality-team généraliste
+# Spécification de conception — quality-team généraliste
+
+> Ce document est la spécification qui a servi à construire le skill, conservée
+> comme référence d'intention. Il décrit ce que le pipeline **doit** faire ;
+> [`architecture.md`](architecture.md) décrit ce qu'il fait effectivement.
+> En cas de divergence, l'implémentation dans
+> [`quality-team/`](../quality-team/) fait foi.
 
 Construire et maintenir un skill `quality-team` utilisable sur n'importe quel
 projet de code. Le coeur du skill ne doit pas supposer React, Tauri, TypeScript,

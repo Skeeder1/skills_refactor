@@ -20,18 +20,36 @@ Les outils de validation sont détectés dans chaque projet cible.
 Exemples d'outils stack-spécifiques détectés si présents : scripts npm/pnpm/yarn,
 Cargo, Go, pytest/ruff/mypy, Maven, Gradle, Make, Composer, Bundler, dotnet.
 
-## Installer le skill
+## Récupérer le dépôt
 
-```powershell
-Copy-Item -Recurse -Force "C:\Projets\skills-refactor\quality-team" "$env:USERPROFILE\.claude\skills\quality-team"
+```bash
+git clone https://github.com/Skeeder1/skills_refactor.git
+cd skills_refactor
 ```
 
-## Installer les agents
+Les commandes ci-dessous s'exécutent depuis la racine du dépôt cloné.
+
+## Installer le skill et les agents
+
+### Linux / macOS
+
+```bash
+mkdir -p ~/.claude/skills ~/.claude/agents
+cp -r quality-team ~/.claude/skills/quality-team
+cp agents/*.md ~/.claude/agents/
+```
+
+### Windows (PowerShell)
 
 ```powershell
-New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.claude\agents"
-Copy-Item "C:\Projets\skills-refactor\agents\*.md" "$env:USERPROFILE\.claude\agents\"
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.claude\skills", "$env:USERPROFILE\.claude\agents"
+Copy-Item -Recurse -Force ".\quality-team" "$env:USERPROFILE\.claude\skills\quality-team"
+Copy-Item ".\agents\*.md" "$env:USERPROFILE\.claude\agents\"
 ```
+
+Pour réinstaller par-dessus une version existante sous Linux/macOS, supprimer
+d'abord `~/.claude/skills/quality-team` : sinon `cp -r` imbrique le dossier au
+lieu de le remplacer.
 
 ## Références et playbooks
 
@@ -64,6 +82,18 @@ Sorties attendues :
 - `REFACTOR_REPORT.md`
 
 ## Vérification rapide
+
+### Linux / macOS
+
+```bash
+test -f ~/.claude/skills/quality-team/SKILL.md && echo "skill installé"
+ls ~/.claude/agents/
+```
+
+Les quatre fichiers attendus dans `~/.claude/agents/` sont `scout.md`,
+`principles-auditor.md`, `refactor-executor.md` et `doc-updater.md`.
+
+### Windows (PowerShell)
 
 ```powershell
 Test-Path "$env:USERPROFILE\.claude\skills\quality-team\SKILL.md"

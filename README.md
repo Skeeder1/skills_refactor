@@ -26,14 +26,36 @@ Demander directement à un LLM « refactore mon code » pose trois problèmes co
 
 Le pipeline sépare les responsabilités entre quatre agents et impose une contrainte structurelle : **les agents qui jugent ne peuvent pas écrire, et l'agent qui écrit ne juge pas.**
 
-```text
-scout  ──────────────►  principles-auditor  ──────────────►  refactor-executor  ──────────────►  doc-updater
-   │                          │                    ▲                  │                              │
-   │ findings.json            │ violations.json    │                  │ changes.json                 │ REFACTOR_REPORT.md
-   ▼                          ▼                    │                  ▼                              ▼
- faits mesurés            jugements classés   validation humaine   changements appliqués          rapport
-                                              obligatoire ici
+```mermaid
+flowchart TD
+    subgraph RO[" Lecture seule — aucun outil d'écriture accordé "]
+        direction LR
+        SCOUT["<b>scout</b><br/>Read · Glob · Grep · Bash<br/><i>collecte des faits</i>"]
+        AUDIT["<b>principles-auditor</b><br/>Read · Grep<br/><i>classe par sévérité</i>"]
+    end
+
+    GATE{"Plan présenté à l'utilisateur<br/><code>refactor_plan.md</code>"}
+    EXEC["<b>refactor-executor</b><br/>Read · Write · Edit · Bash<br/><i>applique le plan approuvé</i>"]
+    REVERT["revert du seul fichier touché<br/>+ skip journalisé"]
+    DOC["<b>doc-updater</b><br/>Read · Write · Edit<br/><i>documentation uniquement</i>"]
+    OUT(["REFACTOR_REPORT.md"])
+
+    SCOUT -- "findings.json" --> AUDIT
+    AUDIT -- "violations.json" --> GATE
+    GATE -- "approbation explicite" --> EXEC
+    GATE -- "refus, silence, ou audit-only" --> DOC
+    EXEC -- "validation OK" --> DOC
+    EXEC -- "validation KO" --> REVERT
+    REVERT -- "fichier suivant" --> EXEC
+    DOC -- "changes.json lu si présent" --> OUT
+
+    style GATE fill:#fff3cd,stroke:#c9971c,stroke-width:2px,color:#000
+    style EXEC fill:#f8d7da,stroke:#b02a37,color:#000
+    style REVERT fill:#f8d7da,stroke:#b02a37,color:#000
+    style OUT fill:#d1e7dd,stroke:#146c43,color:#000
 ```
+
+Aucune flèche ne mène à `refactor-executor` sans passer par le losange : c'est le seul point du pipeline où du code peut commencer à être modifié, et il exige une réponse affirmative.
 
 Quatre décisions structurent l'ensemble :
 

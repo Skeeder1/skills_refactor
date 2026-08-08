@@ -1,0 +1,28 @@
+# --- Secrets et identifiants -------------------------------------------------
+# Note : le motif `.env` seul ne matche que le fichier nommé exactement « .env ».
+# `*.env` est nécessaire pour couvrir `secrets.env`, `prod.env`, etc.
+.env
+*.env
+!*.env.example
+secrets*
+credentials*
+*.key
+*.pem
+*.p12
+*.pfx
+id_rsa*
+
+# --- Artefacts produits par quality-team au runtime --------------------------
+# Le skill écrit ses fichiers intermédiaires dans le projet analysé.
+.claude/quality-team/
+REFACTOR_REPORT.md
+
+# --- Réglages Claude Code locaux (personnels, propres à une machine) ---------
+.claude/settings.local.json
+
+# --- Système -----------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~

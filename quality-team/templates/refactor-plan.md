@@ -1,35 +1,35 @@
-# Plan d'action quality-team
+# quality-team action plan
 
 ## Scope
 
-- Scope analysé : {{scope}}
-- Mode demandé : {{mode}}
-- Langages détectés : {{languages}}
-- Playbooks chargés : {{playbooks}}
+- Scope analysed: {{scope}}
+- Requested mode: {{mode}}
+- Languages detected: {{languages}}
+- Playbooks loaded: {{playbooks}}
 
-## Validations prévues
+## Planned validations
 
-| Nom | Commande | Statut baseline | Raison |
-|-----|----------|-----------------|--------|
+| Name | Command | Baseline status | Reason |
+|------|---------|-----------------|--------|
 | {{validation_name}} | `{{validation_command}}` | {{baseline_status}} | {{reason}} |
 
-Si aucune commande n'est détectée, indiquer : validation automatique indisponible.
+If no command is detected, state: automatic validation unavailable.
 
-## Changements proposés
+## Proposed changes
 
-| Fichier | Sévérité | Problème | Changement prévu | Risque | Validation |
-|---------|----------|----------|------------------|--------|------------|
+| File | Severity | Problem | Planned change | Risk | Validation |
+|------|----------|---------|----------------|------|------------|
 | {{file}} | {{severity}} | {{problem}} | {{planned_change}} | {{risk}} | {{validation}} |
 
-## Fichiers non touchés
+## Files left untouched
 
-| Fichier | Raison |
-|---------|--------|
+| File | Reason |
+|------|--------|
 | {{file}} | {{reason}} |
 
-## Limites
+## Limits
 
-- Changements hors scope exclus.
-- Fichiers générés, vendored, lockfiles et `DO NOT EDIT` exclus.
-- Fichiers `manual_verify` exclus jusqu'à validation humaine séparée.
-- Aucun refactor ne démarre sans validation explicite de l'utilisateur.
+- Changes outside the scope are excluded.
+- Generated, vendored, lockfile and `DO NOT EDIT` files are excluded.
+- `manual_verify` files are excluded until a separate human review.
+- No refactoring starts without explicit approval from the user.

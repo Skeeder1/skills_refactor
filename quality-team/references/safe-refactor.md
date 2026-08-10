@@ -1,68 +1,67 @@
 # Safe refactor rules
-# Utilisé par : refactor-executor
-# Règles universelles, indépendantes du langage et du framework.
+# Used by: refactor-executor
+# Universal rules, independent of language and framework.
 ---
 
-Le refactor automatique doit être conservateur. Les playbooks peuvent ajouter des
-cas spécifiques, mais seulement pour un stack détecté et seulement si le plan les
-liste explicitement.
+Automatic refactoring must be conservative. Playbooks may add specific cases,
+but only for a detected stack and only when the plan lists them explicitly.
 
-## Toujours sûr après confirmation outillage
+## Always safe once the tooling confirms it
 
-Ces changements restent locaux et ne doivent pas modifier le comportement public :
+These changes stay local and must not alter public behaviour:
 
-- Supprimer du code mort confirmé par une analyse cross-fichiers ou Qartez.
-- Supprimer des logs de debug non fonctionnels, hors audit/sécurité/observabilité.
-- Supprimer des blocs de code commenté de plus de 3 lignes.
-- Extraire une constante nommée dans le même fichier.
-- Corriger la documentation publique sans changer signature ni logique.
+- Remove dead code confirmed by a cross-file analysis or by Qartez.
+- Remove non-functional debug logs, excluding audit/security/observability logs.
+- Remove commented-out blocks longer than 3 lines.
+- Extract a named constant within the same file.
+- Fix public documentation without changing a signature or the logic.
 
-## Sûr avec validation post-modification
+## Safe with post-change validation
 
-Ces opérations nécessitent les validations détectées dans
-`.claude/quality-team/validation_commands.json` :
+These operations require the validations detected in
+`.claude/quality-team/validation_commands.json`:
 
-- Renommer un symbole et mettre à jour tous les usages confirmés.
-- Extraire une petite fonction locale sans changer l'interface publique.
-- Déplacer une fonction interne vers un module voisin en mettant à jour tous les imports.
-- Remplacer une valeur magique par une constante déjà introduite localement.
-- Simplifier une condition ou un garde sans changer les cas couverts.
+- Rename a symbol and update every confirmed usage.
+- Extract a small local function without changing the public interface.
+- Move an internal function to a neighbouring module, updating every import.
+- Replace a magic value with a constant already introduced locally.
+- Simplify a condition or a guard without changing the cases it covers.
 
-Si aucune validation projet n'est disponible, ces changements peuvent être proposés
-dans le plan mais doivent être traités comme risque plus élevé.
+If no project validation is available, these changes may still be proposed in
+the plan, but must be treated as higher risk.
 
-## Jamais sans validation humaine séparée
+## Never without separate human review
 
-- Changer une signature publique.
-- Modifier un type ou format de retour public.
-- Supprimer un fichier entier.
-- Modifier authentification, autorisation, chiffrement, secrets, sessions ou permissions.
-- Modifier migrations, schémas de base de données ou formats persistés.
-- Modifier les tests au-delà d'un import/chemin nécessaire à un rename.
-- Modifier la configuration de build, packaging, CI ou déploiement.
-- Introduire une nouvelle dépendance.
-- Changer une API externe ou un protocole réseau.
+- Change a public signature.
+- Change a public return type or format.
+- Delete a whole file.
+- Touch authentication, authorisation, encryption, secrets, sessions or permissions.
+- Touch migrations, database schemas or persisted formats.
+- Change tests beyond an import/path required by a rename.
+- Change the build, packaging, CI or deployment configuration.
+- Introduce a new dependency.
+- Change an external API or a network protocol.
 
-## Jamais toucher
+## Never touch
 
-- Fichiers générés ou vendored.
-- Répertoires de build/cache (`dist/`, `build/`, `target/`, `.next/`, `out/`,
-  `.cache/`, `vendor/`, équivalents).
+- Generated or vendored files.
+- Build/cache directories (`dist/`, `build/`, `target/`, `.next/`, `out/`,
+  `.cache/`, `vendor/`, and equivalents).
 - Lockfiles.
-- Fichiers marqués `DO NOT EDIT` ou `GENERATED`.
-- Fichiers listés dans `violations.manual_verify`.
+- Files marked `DO NOT EDIT` or `GENERATED`.
+- Files listed in `violations.manual_verify`.
 
-## Protocole par fichier
+## Per-file protocol
 
-1. Vérifier la blacklist et `manual_verify`.
-2. Vérifier le blast radius avec Qartez pour les hotspots si disponible.
-3. Lire le fichier et identifier le plus petit changement suffisant.
-4. Appliquer uniquement ce qui est listé dans `refactor_plan.md`.
-5. Lancer les validations applicables détectées.
-6. Si une validation échoue, revert uniquement le fichier touché et logguer le skip.
-7. Continuer avec le fichier suivant.
+1. Check the blacklist and `manual_verify`.
+2. Check the blast radius with Qartez for hotspots, when available.
+3. Read the file and identify the smallest sufficient change.
+4. Apply only what is listed in `refactor_plan.md`.
+5. Run the applicable detected validations.
+6. If a validation fails, revert only the file you touched and log the skip.
+7. Move on to the next file.
 
-## Raisons de skip standard
+## Standard skip reasons
 
 - `manual-verify`
 - `blacklisted`

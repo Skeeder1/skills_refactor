@@ -1,6 +1,6 @@
-# Clean code rules — source : ciembor/agent-rules-books
-# Utilisé par : principles-auditor
-# Licence : MIT
+# Clean code rules — source: ciembor/agent-rules-books
+# Used by: principles-auditor
+# Licence: MIT
 ---
 
 # OBEY Clean Code by Robert C. Martin
@@ -53,7 +53,7 @@ Working code is not automatically clean code.
 
 ---
 
-# Supplément — Clean Architecture (source : ciembor/agent-rules-books)
+# Supplement — Clean Architecture (source: ciembor/agent-rules-books)
 
 # OBEY Clean Architecture by Robert C. Martin
 
@@ -107,7 +107,7 @@ Do not let details become the architecture. Business policy stays independent, d
 
 ---
 
-# Supplément — Working Effectively with Legacy Code (source : ciembor/agent-rules-books)
+# Supplement — Working Effectively with Legacy Code (source: ciembor/agent-rules-books)
 
 # OBEY Working Effectively with Legacy Code by Michael Feathers
 

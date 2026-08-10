@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "changes.schema.json",
   "title": "Changes",
-  "description": "Output produit par refactor-executor : changements appliqués, skips et validations génériques.",
+  "description": "Output produced by refactor-executor: changes applied, skips, and generic validations.",
   "type": "object",
   "required": ["generated_at", "applied", "skipped", "validation_results"],
   "properties": {

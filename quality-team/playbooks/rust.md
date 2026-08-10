@@ -1,171 +1,171 @@
-# Playbook optionnel — Rust + Tauri backend
-# Utilisé par : principles-auditor uniquement si Rust est détecté
-# Référence croisée : principles.md (P1-P10), ai-smells.md
+# Optional playbook — Rust + Tauri backend
+# Used by: principles-auditor, only when Rust is detected
+# Cross-reference: principles.md (P1-P10), ai-smells.md
 ---
 
-Ce playbook liste les violations et patterns spécifiques aux projets Rust + Tauri.
-Il complète `principles.md` avec des règles concrètes pour le code Rust côté backend.
-Il ne doit jamais être appliqué à un projet sans Rust détecté.
+This playbook lists the violations and patterns specific to Rust + Tauri projects.
+It complements `principles.md` with concrete rules for backend-side Rust code.
+It must never be applied to a project where Rust was not detected.
 
 ---
 
-## Section 1 — Gestion d'erreurs
+## Section 1 — Error handling
 
-### 1.1 `unwrap()` / `expect()` sur des chemins utilisateur → violation P5
+### 1.1 `unwrap()` / `expect()` on user-facing paths → P5 violation
 
-**Pattern interdit :**
+**Forbidden pattern:**
 ```rust
-// ❌ Panique si le fichier n'existe pas — crash de l'application
+// ❌ Panics if the file does not exist — the application crashes
 let content = std::fs::read_to_string(path).unwrap()
 
-// ❌ expect() = unwrap() avec un message, mais panique quand même
-let config = serde_json::from_str::<Config>(&json).expect("config invalide")
+// ❌ expect() = unwrap() with a message, but it still panics
+let config = serde_json::from_str::<Config>(&json).expect("invalid config")
 ```
 
-**Correction :**
+**Fix:**
 ```rust
-// ✅ Propagation avec ? ou gestion explicite
+// ✅ Propagate with ?, or handle explicitly
 let content = std::fs::read_to_string(path)
     .map_err(|e| AppError::FileRead { path: path.to_string(), source: e })?;
 
-// ✅ Ou matching explicite
+// ✅ Or match explicitly
 let config = match serde_json::from_str::<Config>(&json) {
     Ok(c) => c,
     Err(e) => return Err(AppError::ConfigParse(e.to_string())),
 };
 ```
 
-**Règle Clippy :** `clippy::unwrap_used`, `clippy::expect_used`
+**Clippy rule:** `clippy::unwrap_used`, `clippy::expect_used`
 
 ---
 
-### 1.2 `let _ = result_qui_peut_echouer` → violation P5
+### 1.2 `let _ = fallible_result` → P5 violation
 
-**Pattern interdit :**
+**Forbidden pattern:**
 ```rust
-// ❌ L'erreur est silencieusement ignorée
+// ❌ The error is silently discarded
 let _ = write_log(message);
 let _ = db.save(&record);
 ```
 
-**Correction :**
+**Fix:**
 ```rust
-// ✅ Propagation ou gestion explicite
+// ✅ Propagate, or handle explicitly
 write_log(message)?;
 
-// ✅ Ou logging de l'erreur si on ne peut pas propager
+// ✅ Or log the error when propagation is not possible
 if let Err(e) = db.save(&record) {
-    tracing::error!("Échec save: {e}");
+    tracing::error!("Save failed: {e}");
 }
 ```
 
 ---
 
-### 1.3 Commande Tauri sans `Result<T, E>` → violation P5
+### 1.3 A Tauri command without `Result<T, E>` → P5 violation
 
-**Pattern interdit :**
+**Forbidden pattern:**
 ```rust
-// ❌ Aucun moyen de signaler une erreur au frontend
+// ❌ No way to report an error to the frontend
 #[tauri::command]
 fn get_user(id: String) -> User {
-    db::find_user(&id).unwrap() // panique si absent
+    db::find_user(&id).unwrap() // panics when missing
 }
 ```
 
-**Correction :**
+**Fix:**
 ```rust
-// ✅ Toujours retourner Result depuis une commande Tauri
+// ✅ Always return a Result from a Tauri command
 #[tauri::command]
 fn get_user(id: String) -> Result<User, String> {
     db::find_user(&id).map_err(|e| e.to_string())
 }
 
-// ✅ Encore mieux : un type d'erreur dédié
+// ✅ Better still: a dedicated error type
 #[tauri::command]
 fn get_user(id: String) -> Result<User, AppError> {
     db::find_user(&id).map_err(AppError::from)
 }
 ```
 
-**Règle :** Toute fonction annotée `#[tauri::command]` doit avoir `Result<T, E>` comme type de retour.
+**Rule:** every function annotated `#[tauri::command]` must have `Result<T, E>` as its return type.
 
 ---
 
-### 1.4 `catch { continue }` implicite — patterns Rust équivalents
+### 1.4 The implicit `catch { continue }` — equivalent Rust patterns
 
 ```rust
-// ❌ Ignorer silencieusement via if let (acceptable seulement si vraiment optionnel)
+// ❌ Silently ignoring via if let (acceptable only when it really is optional)
 if let Ok(result) = risky_operation() {
     use_result(result)
 }
-// Si risky_operation() échoue sur des données utilisateur → silent failure
+// If risky_operation() fails on user data → silent failure
 
-// ✅ Toujours logger au minimum
+// ✅ Always log, at minimum
 match risky_operation() {
     Ok(result) => use_result(result),
-    Err(e) => tracing::warn!("Opération échouée (non critique): {e}"),
+    Err(e) => tracing::warn!("Operation failed (non-critical): {e}"),
 }
 ```
 
 ---
 
-## Section 2 — Nommage et structure
+## Section 2 — Naming and structure
 
-### 2.1 Convention snake_case obligatoire
+### 2.1 snake_case convention is mandatory
 
 ```rust
 // ❌ camelCase (Rust warning)
 fn getUserById(id: &str) -> User { ... }
 struct UserData { firstName: String }
 
-// ✅ snake_case partout
+// ✅ snake_case everywhere
 fn get_user_by_id(id: &str) -> User { ... }
 struct UserData { first_name: String }
 ```
 
-**Détection :** `cargo clippy` (non_snake_case warning by default)
+**Detection:** `cargo clippy` (non_snake_case warning by default)
 
 ---
 
-### 2.2 `pub use` dans `mod.rs` pour une API propre → violation P1 si absent
+### 2.2 `pub use` in `mod.rs` for a clean API → P1 violation when missing
 
 ```rust
-// Structure recommandée :
+// Recommended structure:
 // src/
 //   users/
-//     mod.rs      ← API publique du module uniquement
+//     mod.rs      ← the module's public API only
 //     repository.rs
 //     service.rs
 //     types.rs
 
-// ✅ mod.rs expose uniquement l'interface publique
+// ✅ mod.rs exposes the public interface only
 pub use self::service::UserService;
 pub use self::types::{User, CreateUserRequest, UserError};
-// ❌ Ne pas mettre de logique dans mod.rs
+// ❌ Do not put logic in mod.rs
 ```
 
 ---
 
-### 2.3 Logique dans `mod.rs` → violation P1
+### 2.3 Logic inside `mod.rs` → P1 violation
 
 ```rust
-// ❌ mod.rs avec de la logique métier
+// ❌ mod.rs holding business logic
 pub mod users;
 
 pub fn process_user(user: &User) -> Result<(), Error> {
-    // 50 lignes de logique ici
+    // 50 lines of logic here
 }
 ```
 
-**Correction :** Déplacer toute logique dans des fichiers dédiés (`service.rs`, `handler.rs`, etc.)
+**Fix:** move all logic into dedicated files (`service.rs`, `handler.rs`, and so on).
 
 ---
 
-## Section 3 — Clippy obligatoire
+## Section 3 — Clippy is mandatory
 
-### 3.1 Configuration Clippy recommandée
+### 3.1 Recommended Clippy configuration
 
-Dans `.cargo/config.toml` ou `Cargo.toml` :
+In `.cargo/config.toml` or `Cargo.toml`:
 
 ```toml
 [lints.clippy]
@@ -175,61 +175,61 @@ panic = "deny"
 indexing_slicing = "warn"
 ```
 
-### 3.2 Lints critiques à activer
+### 3.2 Critical lints to enable
 
-| Lint | Niveau | Raison |
-|------|--------|--------|
-| `clippy::unwrap_used` | deny | Panique sur chemin utilisateur |
-| `clippy::expect_used` | deny | Idem |
-| `clippy::panic` | deny | Jamais de panic en production Tauri |
-| `clippy::indexing_slicing` | warn | `slice[n]` peut paniquer |
-| `clippy::todo` | warn | Code incomplet en production |
-| `clippy::unimplemented` | warn | Idem |
-| `clippy::unwrap_in_result` | deny | unwrap à l'intérieur d'un Result |
+| Lint | Level | Reason |
+|------|-------|--------|
+| `clippy::unwrap_used` | deny | Panics on a user-facing path |
+| `clippy::expect_used` | deny | Same |
+| `clippy::panic` | deny | Never panic in a Tauri production build |
+| `clippy::indexing_slicing` | warn | `slice[n]` can panic |
+| `clippy::todo` | warn | Incomplete code in production |
+| `clippy::unimplemented` | warn | Same |
+| `clippy::unwrap_in_result` | deny | unwrap inside a Result |
 
-### 3.3 CI obligatoire
+### 3.3 CI is mandatory
 
 ```bash
-# ❌ Ne pas utiliser sans -D warnings en CI
+# ❌ Do not use it without -D warnings in CI
 cargo clippy
 
-# ✅ CI strict — échoue si warning
+# ✅ Strict CI — fails on a warning
 cargo clippy -- -D warnings
 ```
 
 ---
 
-## Section 4 — Paths et fichiers
+## Section 4 — Paths and files
 
-### 4.1 `PathBuf::from("nom.pdf").exists()` sans chemin absolu → toujours faux
+### 4.1 `PathBuf::from("name.pdf").exists()` without an absolute path → always false
 
-**Pattern interdit :**
+**Forbidden pattern:**
 ```rust
-// ❌ Chemin relatif non résolu — exists() retournera false en production
+// ❌ Unresolved relative path — exists() will return false in production
 let path = PathBuf::from("document.pdf");
 if path.exists() { ... }
 
-// ❌ Chemin construit depuis une string sans validation
+// ❌ Path built from a string with no validation
 fn process_file(filename: &str) -> Result<()> {
     let path = PathBuf::from(filename)
-    // filename peut être "../../../etc/passwd"
+    // filename could be "../../../etc/passwd"
 }
 ```
 
-**Correction :**
+**Fix:**
 ```rust
-// ✅ Résoudre depuis le répertoire de données Tauri
+// ✅ Resolve from the Tauri data directory
 use tauri::api::path::app_data_dir;
 let base = app_data_dir(&config).ok_or(AppError::PathResolution)?;
 let path = base.join("document.pdf");
 if path.exists() { ... }
 
-// ✅ Valider et canonicaliser
+// ✅ Validate and canonicalise
 fn process_file(base_dir: &Path, filename: &str) -> Result<PathBuf> {
     let path = base_dir.join(filename);
     let canonical = path.canonicalize()
         .map_err(|_| AppError::InvalidPath)?;
-    // Vérifier que le chemin est bien sous base_dir (path traversal protection)
+    // Check the path really is under base_dir (path traversal protection)
     if !canonical.starts_with(base_dir) {
         return Err(AppError::PathTraversal);
     }
@@ -237,22 +237,22 @@ fn process_file(base_dir: &Path, filename: &str) -> Result<PathBuf> {
 }
 ```
 
-**Sévérité :** blocking (bug silencieux + risque sécurité)
+**Severity:** blocking (silent bug + security risk)
 
 ---
 
-### 4.2 Chemins construits depuis une string sans validation → violation P4
+### 4.2 Paths built from a string without validation → P4 violation
 
 ```rust
-// ❌ Concaténation directe sans validation
+// ❌ Direct concatenation with no validation
 fn open_user_file(user_input: &str) -> Result<File> {
     let path = format!("/data/{}", user_input) // path traversal possible
     File::open(path).map_err(AppError::from)
 }
 
-// ✅ Validation stricte
+// ✅ Strict validation
 fn open_user_file(base: &Path, filename: &str) -> Result<File> {
-    // Rejeter les chemins contenant des séparateurs
+    // Reject paths containing separators
     if filename.contains('/') || filename.contains('\\') || filename.contains("..") {
         return Err(AppError::InvalidFilename);
     }
@@ -263,28 +263,28 @@ fn open_user_file(base: &Path, filename: &str) -> Result<File> {
 
 ---
 
-## Section 5 — Type d'erreur domaine
+## Section 5 — Domain error type
 
-### 5.1 Définir un type d'erreur applicatif centralisé
+### 5.1 Define one centralised application error type
 
 ```rust
-// ✅ Un enum d'erreur par domaine ou par module
+// ✅ One error enum per domain or per module
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
-    #[error("Fichier introuvable : {path}")]
+    #[error("File not found: {path}")]
     FileNotFound { path: String },
 
-    #[error("Erreur de sérialisation : {0}")]
+    #[error("Serialisation error: {0}")]
     Serialization(#[from] serde_json::Error),
 
-    #[error("Erreur IPC : {0}")]
+    #[error("IPC error: {0}")]
     Ipc(String),
 
-    #[error("Accès refusé")]
+    #[error("Access denied")]
     Unauthorized,
 }
 
-// ✅ Implémentation de serde::Serialize pour Tauri
+// ✅ serde::Serialize implementation, for Tauri
 impl serde::Serialize for AppError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where S: serde::Serializer {
@@ -295,14 +295,14 @@ impl serde::Serialize for AppError {
 
 ---
 
-## Outils de détection (résumé)
+## Detection tooling (summary)
 
-| Violation | Outil | Règle / Grep |
-|-----------|-------|-------------|
+| Violation | Tool | Rule / Grep |
+|-----------|------|-------------|
 | unwrap/expect | clippy | `clippy::unwrap_used`, `clippy::expect_used` |
-| Commande sans Result | grep | `#\[tauri::command\]` sans `Result<` |
-| Panique | clippy | `clippy::panic` |
-| Chemin relatif | grep | `PathBuf::from("` + pas de variable |
-| let _ ignoré | clippy | `clippy::let_underscore_must_use` |
-| non snake_case | clippy | warning par défaut |
-| Logique dans mod.rs | qartez | `qartez_outline` sur mod.rs |
+| Command without Result | grep | `#\[tauri::command\]` without `Result<` |
+| Panic | clippy | `clippy::panic` |
+| Relative path | grep | `PathBuf::from("` with no variable |
+| Ignored let _ | clippy | `clippy::let_underscore_must_use` |
+| Non snake_case | clippy | warning by default |
+| Logic in mod.rs | qartez | `qartez_outline` on mod.rs |

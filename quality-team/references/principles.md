@@ -1,199 +1,195 @@
-# Principes fondamentaux — quality-team
-# Utilisé par : principles-auditor
-# Référence universelle, indépendante du langage et du framework.
+# Core principles — quality-team
+# Used by: principles-auditor
+# Universal reference, independent of language and framework.
 ---
 
-Ces principes s'appliquent à tout codebase. Les détails propres à un langage,
-framework ou runtime doivent vivre dans un playbook optionnel, jamais dans ce
-fichier.
+These principles apply to any codebase. Anything specific to a language,
+framework or runtime belongs in an optional playbook, never in this file.
 
-## P1 — Responsabilité unique
+## P1 — Single responsibility
 
-**Règle :** Un fichier, module, type ou fonction doit avoir une raison principale
-de changer.
+**Rule:** A file, module, type or function must have one main reason to change.
 
-**Violations détectables :**
-- Module mélangeant orchestration, accès aux données, rendu, validation et I/O.
-- Fonction qui fait setup, validation, calcul, persistance et reporting.
-- Fichier très long avec plusieurs domaines métier ou techniques non liés.
+**Detectable violations:**
+- A module mixing orchestration, data access, rendering, validation and I/O.
+- A function doing setup, validation, computation, persistence and reporting.
+- A very long file covering several unrelated business or technical domains.
 
-**Fix standard :**
-- Extraire les responsabilités en modules ou fonctions nommées.
-- Séparer orchestration, règles métier, accès externe et présentation.
-- Garder les interfaces publiques petites et intentionnelles.
+**Standard fix:**
+- Extract the responsibilities into named modules or functions.
+- Separate orchestration, business rules, external access and presentation.
+- Keep public interfaces small and intentional.
 
-**Détection automatique :**
-- Hotspots Qartez, complexité Lizard, graphe de dépendances, nombre d'exports.
+**Automatic detection:**
+- Qartez hotspots, Lizard complexity, dependency graph, number of exports.
 
-## P2 — Source unique de vérité
+## P2 — Single source of truth
 
-**Règle :** Une information métier ou technique doit avoir une source autoritaire.
-Les copies, caches et vues dérivées doivent être explicitement synchronisés ou
-recalculables.
+**Rule:** A piece of business or technical information must have one
+authoritative source. Copies, caches and derived views must be explicitly
+synchronised or recomputable.
 
-**Violations détectables :**
-- Même valeur maintenue dans deux structures sans source autoritaire claire.
-- Cache mis à jour manuellement sans invalidation.
-- État dérivé stocké au lieu d'être calculé.
-- Configuration dupliquée entre code, fichier et environnement.
+**Detectable violations:**
+- The same value maintained in two structures with no clear authoritative source.
+- A cache updated by hand, with no invalidation.
+- Derived state stored instead of computed.
+- Configuration duplicated across code, file and environment.
 
-**Fix standard :**
-- Choisir la source autoritaire.
-- Dériver les vues secondaires.
-- Centraliser la config et documenter les règles d'invalidation.
+**Standard fix:**
+- Pick the authoritative source.
+- Derive the secondary views.
+- Centralise the configuration and document the invalidation rules.
 
-**Détection automatique :**
-- Clones Qartez/Lizard, duplication de constantes, co-change fréquent.
+**Automatic detection:**
+- Qartez/Lizard clones, duplicated constants, frequent co-change.
 
-## P3 — Contrats explicites aux frontières
+## P3 — Explicit contracts at the boundaries
 
-**Règle :** Toute donnée venant d'une frontière externe doit être validée,
-normalisée ou typée selon les conventions du langage.
+**Rule:** Any data coming from an external boundary must be validated,
+normalised or typed according to the conventions of the language.
 
-**Frontières :**
-- API, fichiers, base de données, CLI, variables d'environnement, réseau,
-  messages inter-processus, sérialisation, entrée utilisateur.
+**Boundaries:**
+- API, files, database, CLI, environment variables, network, inter-process
+  messages, serialisation, user input.
 
-**Violations détectables :**
-- Donnée externe utilisée directement comme donnée interne fiable.
-- Cast/assertion sans validation runtime lorsque le langage le nécessite.
-- Parsing sans gestion d'erreur.
-- Format implicite non documenté.
+**Detectable violations:**
+- External data used directly as trusted internal data.
+- A cast/assertion with no runtime validation where the language requires one.
+- Parsing with no error handling.
+- An implicit, undocumented format.
 
-**Fix standard :**
-- Introduire un parseur, validateur, DTO ou type domaine.
-- Refuser ou normaliser les données invalides à la frontière.
-- Documenter le contrat public.
+**Standard fix:**
+- Introduce a parser, a validator, a DTO or a domain type.
+- Reject or normalise invalid data at the boundary.
+- Document the public contract.
 
-**Détection automatique :**
-- Linters, typecheckers, grep sur parse/cast, règles sécurité, tests de contrat.
+**Automatic detection:**
+- Linters, typecheckers, grep on parse/cast, security rules, contract tests.
 
-## P4 — Intégrité des mutations et invariants
+## P4 — Mutation integrity and invariants
 
-**Règle :** Toute mutation doit préserver les invariants du domaine et rester
-localisée. Les états partagés ou observables doivent être modifiés de manière
-contrôlée.
+**Rule:** Every mutation must preserve the domain invariants and stay local.
+Shared or observable state must be modified in a controlled way.
 
-**Violations détectables :**
-- Mutation directe d'un objet partagé sans passer par l'API propriétaire.
-- Mise à jour partielle qui laisse un invariant cassé en cas d'erreur.
-- Donnée modifiée en place alors que les consommateurs attendent une nouvelle valeur.
+**Detectable violations:**
+- Direct mutation of a shared object, bypassing the owning API.
+- A partial update that leaves an invariant broken when an error occurs.
+- Data modified in place while consumers expect a new value.
 
-**Fix standard :**
-- Centraliser les mutations dans une fonction ou méthode domaine.
-- Utiliser des transactions, copies contrôlées ou garde-fous selon le langage.
-- Valider les invariants avant et après mutation critique.
+**Standard fix:**
+- Centralise mutations in a domain function or method.
+- Use transactions, controlled copies or guards, depending on the language.
+- Validate the invariants before and after a critical mutation.
 
-**Détection automatique :**
-- Linters, analyse AST, tests d'invariants, revue des hotspots.
+**Automatic detection:**
+- Linters, AST analysis, invariant tests, hotspot review.
 
-## P5 — Erreurs explicites
+## P5 — Explicit errors
 
-**Règle :** Une erreur doit être traitée, propagée ou convertie en erreur domaine.
-Elle ne doit jamais disparaître silencieusement.
+**Rule:** An error must be handled, propagated or converted into a domain error.
+It must never disappear silently.
 
-**Violations détectables :**
-- Catch vide ou qui retourne une valeur neutre sans justification.
-- Résultat d'opération critique ignoré.
-- Exception/panic/abort possible sur entrée utilisateur.
-- Message d'erreur générique qui perd la cause utile.
+**Detectable violations:**
+- An empty catch, or one returning a neutral value with no justification.
+- The result of a critical operation ignored.
+- A possible exception/panic/abort on user input.
+- A generic error message that loses the useful cause.
 
-**Fix standard :**
-- Propager l'erreur ou la mapper vers un type/format domaine.
-- Logger seulement si le log est actionnable et ne remplace pas la propagation.
-- Ajouter une stratégie de fallback explicite pour les erreurs acceptées.
+**Standard fix:**
+- Propagate the error, or map it to a domain type/format.
+- Log only when the log is actionable and does not replace propagation.
+- Add an explicit fallback strategy for the errors you accept.
 
-**Détection automatique :**
-- Linters, analyse des blocs catch/match/result, tests d'échec.
+**Automatic detection:**
+- Linters, analysis of catch/match/result blocks, failure tests.
 
-## P6 — Effets de bord isolés
+## P6 — Isolated side effects
 
-**Règle :** Les effets de bord doivent être explicites, localisés et séparés du
-calcul pur quand c'est raisonnable.
+**Rule:** Side effects must be explicit, local, and separated from pure
+computation whenever that is reasonable.
 
-**Violations détectables :**
-- Fonction de calcul qui écrit un fichier, modifie un global ou déclenche du réseau.
-- I/O cachée dans un getter, formatteur ou validateur.
-- Ordre d'exécution implicite nécessaire au bon fonctionnement.
+**Detectable violations:**
+- A computation function that writes a file, mutates a global or hits the network.
+- I/O hidden inside a getter, a formatter or a validator.
+- An implicit execution order required for correctness.
 
-**Fix standard :**
-- Séparer calcul pur et orchestration.
-- Injecter les dépendances externes.
-- Nommer les fonctions à effet avec des verbes explicites.
+**Standard fix:**
+- Separate pure computation from orchestration.
+- Inject the external dependencies.
+- Name effectful functions with explicit verbs.
 
-**Détection automatique :**
-- Appels I/O dans fonctions de transformation, graphes d'appels, revue des noms.
+**Automatic detection:**
+- I/O calls inside transformation functions, call graphs, naming review.
 
-## P7 — Duplication maîtrisée
+## P7 — Duplication under control
 
-**Règle :** Deux occurrences similaires sont un signal, trois occurrences
-indiquent souvent une extraction. L'abstraction ne doit pas créer plus de
-couplage que la duplication.
+**Rule:** Two similar occurrences are a signal; three occurrences usually
+justify an extraction. The abstraction must not create more coupling than the
+duplication it removes.
 
-**Violations détectables :**
-- Même séquence validation → transformation → sauvegarde dans plusieurs fichiers.
-- Constantes ou messages métier copiés.
-- Tests ou handlers dupliquant la même logique.
+**Detectable violations:**
+- The same validation → transformation → save sequence in several files.
+- Copied business constants or messages.
+- Tests or handlers duplicating the same logic.
 
-**Fix standard :**
-- Extraire une fonction, un module ou un type commun si le concept est réellement partagé.
-- Garder séparé si les domaines divergent.
+**Standard fix:**
+- Extract a shared function, module or type when the concept really is shared.
+- Keep them separate when the domains diverge.
 
-**Détection automatique :**
-- `qartez_clones`, Lizard duplicate, recherche de constantes.
+**Automatic detection:**
+- `qartez_clones`, Lizard duplicate, constant search.
 
-## P8 — Nommage intentionnel
+## P8 — Intentional naming
 
-**Règle :** Les noms doivent exposer l'intention métier ou technique, pas seulement
-la forme de la donnée.
+**Rule:** Names must expose the business or technical intent, not just the shape
+of the data.
 
-**Violations détectables :**
-- Noms vagues dans du code non trivial : `data`, `value`, `result`, `tmp`, `manager`.
-- Même concept nommé différemment selon les modules.
-- Fonction nommée comme un événement alors qu'elle transforme ou persiste.
+**Detectable violations:**
+- Vague names in non-trivial code: `data`, `value`, `result`, `tmp`, `manager`.
+- The same concept named differently across modules.
+- A function named like an event while it transforms or persists.
 
-**Fix standard :**
-- Renommer selon le vocabulaire du domaine.
-- Utiliser un terme unique par concept.
-- Préférer des verbes précis pour les actions.
+**Standard fix:**
+- Rename using the vocabulary of the domain.
+- Use one term per concept.
+- Prefer precise verbs for actions.
 
-**Détection automatique :**
-- Recherche de noms génériques, revue de cohérence, refs Qartez avant rename.
+**Automatic detection:**
+- Search for generic names, consistency review, Qartez refs before a rename.
 
-## P9 — Petite taille et faible complexité
+## P9 — Small size and low complexity
 
-**Règle :** Les unités de code doivent rester lisibles, testables et peu
-imbriquées.
+**Rule:** Units of code must stay readable, testable and shallowly nested.
 
-**Seuils par défaut :**
-- Fonction > 40 lignes : à inspecter.
-- Complexité cyclomatique > 10 : à inspecter.
-- Paramètres > 4 : envisager un objet/struct de paramètres.
-- Imbrication > 3 niveaux : préférer gardes ou extraction.
+**Default thresholds:**
+- Function > 40 lines: inspect.
+- Cyclomatic complexity > 10: inspect.
+- Parameters > 4: consider a parameter object/struct.
+- Nesting > 3 levels: prefer guards or extraction.
 
-**Fix standard :**
-- Extraire les phases.
-- Remplacer l'imbrication par des gardes.
-- Introduire un objet de paramètres si cela clarifie l'appel.
+**Standard fix:**
+- Extract the phases.
+- Replace nesting with guard clauses.
+- Introduce a parameter object when it clarifies the call site.
 
-**Détection automatique :**
-- Lizard, Qartez hotspots, linters de complexité.
+**Automatic detection:**
+- Lizard, Qartez hotspots, complexity linters.
 
-## P10 — Documentation vivante
+## P10 — Living documentation
 
-**Règle :** La documentation doit expliquer les contrats, décisions et contraintes
-qui ne sont pas évidents dans le code.
+**Rule:** Documentation must explain the contracts, decisions and constraints
+that are not obvious from the code.
 
-**Violations détectables :**
-- API publique sans contrat compréhensible.
-- README ou AGENTS qui référence des chemins obsolètes.
-- Commentaire qui décrit le code au lieu d'expliquer le pourquoi.
-- TODO sans contexte, propriétaire ou condition de résolution.
+**Detectable violations:**
+- A public API with no understandable contract.
+- A README or AGENTS file referencing stale paths.
+- A comment describing the code instead of explaining the why.
+- A TODO with no context, owner or resolution condition.
 
-**Fix standard :**
-- Documenter les APIs publiques dans le format idiomatique du langage.
-- Mettre à jour la documentation quand un module bouge.
-- Supprimer les commentaires narratifs inutiles.
+**Standard fix:**
+- Document public APIs in the idiomatic format of the language.
+- Update the documentation when a module moves.
+- Delete pointless narrative comments.
 
-**Détection automatique :**
-- Recherche d'exports publics non documentés, liens cassés, TODO sans contexte.
+**Automatic detection:**
+- Search for undocumented public exports, broken links, TODOs without context.

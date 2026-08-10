@@ -1,26 +1,26 @@
-# Checklist MCP et outils — quality-team
+# MCP and tooling checklist — quality-team
 
-Le skill fonctionne sans MCP, mais certains outils améliorent fortement la
-précision. Aucun outil stack-spécifique n'est obligatoire pour tous les projets.
+The skill works without any MCP, but some tools improve precision
+considerably. No stack-specific tool is mandatory for every project.
 
-## MCP recommandés
+## Recommended MCP servers
 
-### Qartez MCP — recommandé pour tous les projets
+### Qartez MCP — recommended for every project
 
-**Pourquoi :**
-- Cartographie structurelle du codebase
-- Hotspots complexité × couplage × churn
-- Blast radius avant modification
-- Dead code cross-fichiers
-- Clones AST
+**Why:**
+- Structural map of the codebase
+- Hotspots: complexity × coupling × churn
+- Blast radius before a modification
+- Cross-file dead code
+- AST clones
 
-**Install Windows PowerShell :**
+**Install, Windows PowerShell:**
 
 ```powershell
 powershell -ExecutionPolicy Bypass -c "iwr https://raw.githubusercontent.com/kuberstar/qartez-mcp/main/install.ps1 -useb | iex"
 ```
 
-**Config :**
+**Config:**
 
 ```json
 {
@@ -33,20 +33,20 @@ powershell -ExecutionPolicy Bypass -c "iwr https://raw.githubusercontent.com/kub
 }
 ```
 
-**Agents :**
-- scout : `qartez_map`, `qartez_hotspots`, `qartez_unused`, `qartez_clones`, `qartez_deps`
-- principles-auditor : `qartez_read`, `qartez_outline`, `qartez_refs`, `qartez_calls`
-- refactor-executor : `qartez_impact`, `qartez_refs`
+**Agents:**
+- scout: `qartez_map`, `qartez_hotspots`, `qartez_unused`, `qartez_clones`, `qartez_deps`
+- principles-auditor: `qartez_read`, `qartez_outline`, `qartez_refs`, `qartez_calls`
+- refactor-executor: `qartez_impact`, `qartez_refs`
 
-### @knip/mcp — optionnel JavaScript/TypeScript
+### @knip/mcp — optional, JavaScript/TypeScript
 
-**Pourquoi :**
-- Dead code JS/TS
-- Exports inutilisés
-- Dépendances inutilisées
-- Meilleure gestion des barrel files et entry points framework
+**Why:**
+- JS/TS dead code
+- Unused exports
+- Unused dependencies
+- Better handling of barrel files and framework entry points
 
-**Config :**
+**Config:**
 
 ```json
 {
@@ -59,24 +59,24 @@ powershell -ExecutionPolicy Bypass -c "iwr https://raw.githubusercontent.com/kub
 }
 ```
 
-### SonarQube MCP — optionnel enterprise
+### SonarQube MCP — optional, enterprise
 
-Utile si ton organisation utilise déjà SonarQube pour smells, sécurité,
-duplication, quality gates et historique.
+Useful if your organisation already uses SonarQube for smells, security,
+duplication, quality gates and history.
 
-## CLI recommandées selon projet
+## Recommended CLIs, per project
 
-| Projet | Exemples de commandes détectées |
+| Project | Examples of detected commands |
 |--------|---------------------------------|
-| Multi-langage | `lizard` |
-| JS/TS | scripts `npm/pnpm/yarn/bun test|lint|typecheck|build`, Biome, ESLint, TypeScript, Knip |
+| Multi-language | `lizard` |
+| JS/TS | `npm/pnpm/yarn/bun test\|lint\|typecheck\|build` scripts, Biome, ESLint, TypeScript, Knip |
 | Rust | `cargo test`, `cargo check`, `cargo clippy` |
 | Python | `pytest`, `ruff`, `mypy`, `python -m compileall` |
 | Go | `go test ./...`, `go vet ./...` |
-| Java/Kotlin | Maven ou Gradle `test/check` |
+| Java/Kotlin | Maven or Gradle `test/check` |
 | PHP | Composer scripts, PHPUnit, PHPStan/Psalm |
 | Ruby | Bundler/RSpec/RuboCop |
 | .NET | `dotnet test`, `dotnet build` |
 
-Le skill préfère les commandes déclarées par le projet. Si rien n'est détecté,
-il continue l'audit et marque la validation comme `skipped`.
+The skill prefers the commands declared by the project. If nothing is detected,
+it carries on with the audit and marks the validation as `skipped`.

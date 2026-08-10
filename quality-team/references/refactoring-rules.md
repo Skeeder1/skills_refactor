@@ -1,6 +1,6 @@
-# Refactoring rules — source : ciembor/agent-rules-books
-# Utilisé par : principles-auditor
-# Licence : MIT
+# Refactoring rules — source: ciembor/agent-rules-books
+# Used by: principles-auditor
+# Licence: MIT
 ---
 
 # OBEY Refactoring by Martin Fowler

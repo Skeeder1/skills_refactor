@@ -1,216 +1,211 @@
-# Architecture — contrats et modèle de sécurité
+# Architecture — contracts and security model
 
-Ce document détaille le fonctionnement interne du pipeline. Pour l'installation
-et l'usage courant, voir le [README](../README.md).
+This document details how the pipeline works internally. For installation and
+day-to-day usage, see the [README](../README.md).
 
-## Pourquoi des contrats de fichiers
+## Why file-based contracts
 
-Les quatre agents ne se transmettent pas d'information en conversation. Chacun
-écrit un artefact JSON sur disque, que le suivant relit. Ce choix a trois
-conséquences directes :
+The four agents do not hand information to each other in conversation. Each one
+writes a JSON artifact to disk, which the next one reads back. That choice has
+three direct consequences:
 
-- **Une étape qui échoue est visible.** L'orchestrateur vérifie l'existence du
-  fichier de sortie après chaque phase et s'arrête avec un message explicite s'il
-  est absent, au lieu de laisser l'agent suivant travailler sur du vide.
-- **Chaque exécution est inspectable.** Les artefacts restent dans
-  `.claude/quality-team/` après le run. Un désaccord sur une violation se
-  tranche en ouvrant `violations.json`, pas en relançant l'analyse.
-- **Les agents sont remplaçables.** Tout agent respectant le schéma d'entrée et
-  de sortie peut se substituer à celui fourni.
+- **A failing step is visible.** The orchestrator checks that the output file
+  exists after each phase and stops with an explicit message when it is missing,
+  instead of letting the next agent work on nothing.
+- **Every run is inspectable.** The artifacts stay in `.claude/quality-team/`
+  after the run. A disagreement about a violation is settled by opening
+  `violations.json`, not by re-running the analysis.
+- **Agents are replaceable.** Any agent that honours the input and output schema
+  can be substituted for the one shipped here.
 
-Les schémas se trouvent dans [`quality-team/schemas/`](../quality-team/schemas/).
+The schemas live in [`quality-team/schemas/`](../quality-team/schemas/).
 
-## Les trois contrats
+## The three contracts
 
 ### `findings.json` — scout → principles-auditor
 
-Des faits mesurés, sans jugement qualitatif.
+Measured facts, with no qualitative judgment.
 
-| Champ | Type | Contenu |
+| Field | Type | Content |
 |---|---|---|
-| `scope` | string | Chemin analysé |
-| `generated_at` | string | Timestamp ISO |
+| `scope` | string | Path analysed |
+| `generated_at` | string | ISO timestamp |
 | `project` | object | `manifests`, `languages`, `frameworks`, `playbooks_applicable`, `validation_commands` |
-| `tools_used` | string[] | Outils réellement exécutés |
-| `validation_candidates` | validationCommand[] | Commandes détectées |
-| `hotspots` | object[] | `file`, `score`, `reason`, `blast_radius` — triés par score décroissant, 20 maximum |
-| `dead_code` | object[] | `file`, `symbol`, `type`, `tool` — uniquement si confirmé par un outil cross-fichiers |
+| `tools_used` | string[] | Tools actually executed |
+| `validation_candidates` | validationCommand[] | Detected commands |
+| `hotspots` | object[] | `file`, `score`, `reason`, `blast_radius` — sorted by descending score, 20 maximum |
+| `dead_code` | object[] | `file`, `symbol`, `type`, `tool` — only when confirmed by a cross-file tool |
 | `complexity` | object[] | `file`, `fn`, `ccn`, `nloc`, `params`, `threshold_breached` |
 | `clones` | object[] | `files`, `lines`, `tool` |
 | `lint` | object[] | `file`, `line`, `rule`, `severity` (`error` \| `warn` \| `info`), `message`, `tool` |
 | `unused_deps` | object[] | `package`, `manager`, `type`, `tool` |
-| `errors` | object[] | `tool`, `error` — outils absents, timeouts, échecs de parsing |
+| `errors` | object[] | `tool`, `error` — missing tools, timeouts, parse failures |
 
-Le champ `errors` est structurant : un outil indisponible n'interrompt pas le
-scout, il produit une entrée et l'analyse continue. C'est ce qui permet au
-pipeline de fonctionner sans aucun outillage externe.
+The `errors` field is structural: an unavailable tool does not interrupt the
+scout, it produces an entry and the analysis carries on. That is what lets the
+pipeline run with no external tooling at all.
 
-`$defs.validationCommand` : `name`, `command`, `reason`, `applies_to`
-(les trois premiers requis).
+`$defs.validationCommand`: `name`, `command`, `reason`, `applies_to`
+(the first three are required).
 
 ### `violations.json` — principles-auditor → refactor-executor
 
-Des jugements classés, chacun rattaché à un principe et à une preuve.
+Classified judgments, each tied to a principle and to a piece of evidence.
 
-| Champ | Type | Contenu |
+| Field | Type | Content |
 |---|---|---|
-| `generated_at` | string | Timestamp ISO |
-| `files_analyzed` | integer | Nombre de fichiers réellement lus |
-| `blocking` | violation[] | Bug probable, perte de données, erreur silencieuse, sécurité, contrat externe cassé |
-| `important` | violation[] | Dette significative, complexité forte, duplication structurante |
-| `nit` | violation[] | Style, nommage mineur, documentation simple |
-| `suggestion` | violation[] | Amélioration optionnelle ou incertaine |
+| `generated_at` | string | ISO timestamp |
+| `files_analyzed` | integer | Number of files actually read |
+| `blocking` | violation[] | Probable bug, data loss, silent error, security, broken external contract |
+| `important` | violation[] | Significant debt, high complexity, structural duplication |
+| `nit` | violation[] | Style, minor naming, simple documentation |
+| `suggestion` | violation[] | Optional or uncertain improvement |
 | `ai_smells` | object[] | `file`, `rule`, `description`, `severity` |
 | `manual_verify` | object[] | `file`, `reason`, `recommendation` |
 
-`$defs.violation` : `file`, `line`, `principle`, `description`, `evidence`,
-`fix_hint` — `file`, `principle`, `description` et `fix_hint` sont requis.
-Une violation sans piste de correction n'est donc pas représentable.
+`$defs.violation`: `file`, `line`, `principle`, `description`, `evidence`,
+`fix_hint` — `file`, `principle`, `description` and `fix_hint` are required.
+A violation with no suggested fix is therefore not representable.
 
-Deux règles gouvernent le classement :
+Two rules govern the classification:
 
-- **L'incertitude descend.** En cas de doute, l'auditeur classe en `suggestion`,
-  jamais en `blocking`.
-- **`manual_verify` est exclusif.** Un fichier placé en `manual_verify` ne peut
-  pas figurer simultanément comme candidat automatique en `blocking` ou
-  `important`. C'est ce qui empêche l'exécuteur de toucher un fichier que
-  l'auditeur a jugé trop risqué.
+- **Uncertainty is ranked downward.** When in doubt, the auditor classifies as
+  `suggestion`, never as `blocking`.
+- **`manual_verify` is exclusive.** A file placed in `manual_verify` cannot
+  appear at the same time as an automatic candidate under `blocking` or
+  `important`. That is what stops the executor from touching a file the auditor
+  judged too risky.
 
 ### `changes.json` — refactor-executor → doc-updater
 
-Ce qui a été fait, ce qui ne l'a pas été, et pourquoi.
+What was done, what was not, and why.
 
-| Champ | Type | Contenu |
+| Field | Type | Content |
 |---|---|---|
-| `generated_at` | string | Timestamp ISO |
-| `applied` | object[] | `file`, `type`, `description`, `blast_radius_checked`, `validated`, `tools_passed` — tous requis |
-| `skipped` | object[] | `file`, `reason` requis ; `validation_output`, `recommendation`, `blast_radius` optionnels |
+| `generated_at` | string | ISO timestamp |
+| `applied` | object[] | `file`, `type`, `description`, `blast_radius_checked`, `validated`, `tools_passed` — all required |
+| `skipped` | object[] | `file`, `reason` required; `validation_output`, `recommendation`, `blast_radius` optional |
 | `validation_results` | validationResult[] | `name`, `command`, `status` (`pass` \| `fail` \| `skipped`), `output_path`, `summary` |
 
-Le fait que `validated` et `tools_passed` soient requis sur chaque entrée
-`applied` signifie qu'un changement appliqué sans validation possible est
-enregistré comme tel (`validated: false`, `tools_passed: []`) plutôt que présenté
-comme vérifié.
+Because `validated` and `tools_passed` are required on every `applied` entry, a
+change applied with no validation available is recorded as exactly that
+(`validated: false`, `tools_passed: []`) rather than presented as verified.
 
-## Déroulé
+## Run sequence
 
-| Phase | Acteur | Entrée | Sortie |
+| Phase | Actor | Input | Output |
 |---|---|---|---|
-| **0** — Détection | orchestrateur | manifests, extensions du scope | `project_profile.json`, `validation_commands.json`, `baseline_validation.json` |
-| **0b** — Références | orchestrateur | `references/`, `playbooks/` | prompts enrichis |
-| **1** — Cartographie | `scout` | scope, profil projet | `findings.json` |
-| **2** — Audit | `principles-auditor` | `findings.json`, références | `violations.json` |
-| **2b** — Plan | orchestrateur | `findings`, `violations`, `validation_commands` | `refactor_plan.md` + **approbation utilisateur** |
-| **3** — Exécution | `refactor-executor` | plan approuvé | `changes.json` |
-| **4** — Rapport | `doc-updater` | tous les artefacts | `REFACTOR_REPORT.md` |
-| **5** — Synthèse | orchestrateur | `baseline_validation.json` vs post-refactor | comparaison affichée |
+| **0** — Detection | orchestrator | manifests, extensions in the scope | `project_profile.json`, `validation_commands.json`, `baseline_validation.json` |
+| **0b** — References | orchestrator | `references/`, `playbooks/` | enriched prompts |
+| **1** — Mapping | `scout` | scope, project profile | `findings.json` |
+| **2** — Audit | `principles-auditor` | `findings.json`, references | `violations.json` |
+| **2b** — Plan | orchestrator | `findings`, `violations`, `validation_commands` | `refactor_plan.md` + **user approval** |
+| **3** — Execution | `refactor-executor` | approved plan | `changes.json` |
+| **4** — Report | `doc-updater` | every artifact | `REFACTOR_REPORT.md` |
+| **5** — Summary | orchestrator | `baseline_validation.json` vs post-refactor | comparison displayed |
 
-La phase 0 enregistre une **baseline de validation** avant toute modification.
-La phase 5 rejoue les mêmes commandes et affiche la comparaison avant → après.
-Sans cette baseline, un test déjà rouge avant le run serait imputé au
+Phase 0 records a **validation baseline** before any modification. Phase 5
+replays the same commands and displays the before → after comparison. Without
+that baseline, a test that was already red before the run would be blamed on the
 refactoring.
 
-La phase 3 est sautée si `mode = audit-only`, ou si le plan n'a pas reçu
-d'approbation explicite. En mode `audit-only`, le plan est présenté à titre de
-recommandation.
+Phase 3 is skipped when `mode = audit-only`, or when the plan did not receive an
+explicit approval. In `audit-only` mode, the plan is presented as a
+recommendation.
 
-## Modèle de sécurité
+## Security model
 
-### Permissions par agent
+### Per-agent permissions
 
-Les restrictions sont déclarées dans le frontmatter de chaque agent, donc
-appliquées par Claude Code et non par la consigne textuelle.
+The restrictions are declared in each agent's frontmatter, so they are enforced
+by Claude Code rather than by a textual instruction.
 
-| Agent | `tools` | Écriture possible |
+| Agent | `tools` | Writes possible |
 |---|---|---|
-| `scout` | `Read`, `Glob`, `Grep`, `Bash` | aucune |
-| `principles-auditor` | `Read`, `Grep` | aucune — pas même `Bash` |
-| `refactor-executor` | `Read`, `Write`, `Edit`, `MultiEdit`, `Bash` | code source, dans le périmètre du plan |
-| `doc-updater` | `Read`, `Write`, `Edit` | documentation uniquement, pas de `Bash` |
+| `scout` | `Read`, `Glob`, `Grep`, `Bash` | none |
+| `principles-auditor` | `Read`, `Grep` | none — not even `Bash` |
+| `refactor-executor` | `Read`, `Write`, `Edit`, `MultiEdit`, `Bash` | source code, within the perimeter of the plan |
+| `doc-updater` | `Read`, `Write`, `Edit` | documentation only, no `Bash` |
 
-Le skill orchestrateur lui-même est limité à `Read` et `Bash` : il ne peut pas
-modifier de fichier directement.
+The orchestrator skill itself is limited to `Read` and `Bash`: it cannot modify
+a file directly.
 
-### Échelle de risque
+### Risk scale
 
 [`references/safe-refactor.md`](../quality-team/references/safe-refactor.md)
-répartit les opérations en quatre niveaux :
+splits the operations across four levels:
 
-1. **Toujours sûr après confirmation outillage** — suppression de code mort
-   confirmé, de logs de debug non fonctionnels, de blocs commentés de plus de
-   3 lignes ; extraction d'une constante nommée dans le même fichier ;
-   correction de documentation publique sans toucher signature ni logique.
-2. **Sûr avec validation post-modification** — renommage avec mise à jour de
-   tous les usages confirmés, extraction d'une petite fonction locale,
-   déplacement d'une fonction interne, simplification d'une condition. Si aucune
-   validation n'est disponible, ces opérations sont proposées dans le plan mais
-   traitées comme un risque supérieur.
-3. **Jamais sans validation humaine séparée** — signature ou type de retour
-   public, suppression de fichier entier, authentification / autorisation /
-   chiffrement / secrets / sessions, migrations et schémas de base de données,
-   tests au-delà d'un import nécessaire à un rename, configuration de build ou
-   de CI, nouvelle dépendance, API externe.
-4. **Jamais touché** — fichiers générés ou vendorés, répertoires de build
+1. **Always safe once the tooling confirms it** — removing confirmed dead code,
+   non-functional debug logs, commented-out blocks longer than 3 lines;
+   extracting a named constant within the same file; fixing public documentation
+   without touching a signature or the logic.
+2. **Safe with post-change validation** — renaming with an update of every
+   confirmed usage, extracting a small local function, moving an internal
+   function, simplifying a condition. If no validation is available, these
+   operations are still proposed in the plan but treated as higher risk.
+3. **Never without separate human review** — public signature or return type,
+   deleting a whole file, authentication / authorisation / encryption / secrets
+   / sessions, migrations and database schemas, tests beyond an import required
+   by a rename, build or CI configuration, a new dependency, an external API.
+4. **Never touched** — generated or vendored files, build directories
    (`dist/`, `build/`, `target/`, `.next/`, `out/`, `.cache/`, `vendor/`),
-   lockfiles, fichiers marqués `DO NOT EDIT` ou `GENERATED`, et tout fichier
-   listé dans `violations.manual_verify`.
+   lockfiles, files marked `DO NOT EDIT` or `GENERATED`, and every file listed
+   in `violations.manual_verify`.
 
-### Protocole par fichier
+### Per-file protocol
 
-L'exécuteur applique la même séquence à chaque fichier, et s'arrête à la
-première condition bloquante :
+The executor applies the same sequence to every file, and stops at the first
+blocking condition:
 
-1. Vérifier la blacklist et `manual_verify`.
-2. Vérifier le blast radius via Qartez si le fichier est un hotspot.
-3. Lire le fichier, identifier le plus petit changement suffisant.
-4. N'appliquer que ce qui figure dans `refactor_plan.md`.
-5. Lancer les validations applicables.
-6. **Si une validation échoue, revert du seul fichier touché** et journalisation
-   du skip.
-7. Passer au fichier suivant.
+1. Check the blacklist and `manual_verify`.
+2. Check the blast radius through Qartez if the file is a hotspot.
+3. Read the file, identify the smallest sufficient change.
+4. Apply only what appears in `refactor_plan.md`.
+5. Run the applicable validations.
+6. **If a validation fails, revert the single file touched** and log the skip.
+7. Move on to the next file.
 
-Le revert est délibérément à granularité fichier : un échec n'annule pas les
-changements déjà validés sur les autres fichiers.
+The revert is deliberately file-grained: one failure does not undo the changes
+already validated on the other files.
 
-### Raisons de skip normalisées
+### Normalised skip reasons
 
 `manual-verify` · `blacklisted` · `blast-radius-too-high` ·
 `not-in-approved-plan` · `missing-safe-refactor-rules` · `validation-unavailable` ·
 `reverted:validation-failed`
 
-Le cas `missing-safe-refactor-rules` mérite d'être noté : si les règles de
-sécurité ne sont pas parvenues à l'exécuteur, celui-ci n'applique **aucun**
-changement et place tous les candidats dans `skipped`. L'absence de garde-fou
-n'est pas traitée comme une absence de contrainte.
+The `missing-safe-refactor-rules` case is worth noting: if the safety rules did
+not reach the executor, it applies **no** change at all and puts every candidate
+in `skipped`. A missing guardrail is not treated as an absence of constraint.
 
-## Étendre le pipeline
+## Extending the pipeline
 
-### Ajouter un playbook
+### Adding a playbook
 
-Un playbook est un fichier de `quality-team/playbooks/` chargé sous condition.
-Trois points d'accroche :
+A playbook is a file in `quality-team/playbooks/`, loaded conditionally. Three
+hook points:
 
-1. Créer `quality-team/playbooks/<stack>.md`, en croisant les règles avec les
-   principes universels (`P1`–`P10`) plutôt qu'en les redéfinissant.
-2. Déclarer la condition de chargement dans la phase 0b de
+1. Create `quality-team/playbooks/<stack>.md`, cross-referencing the rules with
+   the universal principles (`P1`–`P10`) rather than redefining them.
+2. Declare the loading condition in phase 0b of
    [`SKILL.md`](../quality-team/SKILL.md).
-3. S'assurer que le scout renseigne le stack dans
-   `findings.project.playbooks_applicable` — l'auditeur ne charge que les
-   playbooks qui y figurent.
+3. Make sure the scout records the stack in
+   `findings.project.playbooks_applicable` — the auditor loads only the
+   playbooks listed there.
 
-La contrainte à respecter : **un playbook non applicable ne doit produire
-aucune violation.** C'est ce qui garantit qu'ajouter un playbook ne dégrade pas
-l'analyse des projets qui ne le concernent pas.
+The constraint to respect: **a playbook that does not apply must produce no
+violation.** That is what guarantees that adding a playbook does not degrade the
+analysis of the projects it has nothing to do with.
 
-### Ajouter une règle universelle
+### Adding a universal rule
 
-Les règles applicables à tout langage vont dans
-[`references/principles.md`](../quality-team/references/principles.md) (principes
-structurants) ou
-[`references/ai-smells.md`](../quality-team/references/ai-smells.md) (patterns de
-code généré). Aucune modification de `SKILL.md` n'est nécessaire : ces deux
-fichiers sont chargés systématiquement.
+Rules that apply to any language belong in
+[`references/principles.md`](../quality-team/references/principles.md)
+(structural principles) or
+[`references/ai-smells.md`](../quality-team/references/ai-smells.md) (patterns of
+generated code). No change to `SKILL.md` is needed: both files are always
+loaded.
 
-Une règle ne devient actionnable automatiquement que si elle est aussi couverte
-par `safe-refactor.md`. Sinon, elle produit des constats que l'exécuteur laissera
-en `skipped` avec la raison `not-in-approved-plan`.
+A rule only becomes automatically actionable if it is also covered by
+`safe-refactor.md`. Otherwise it produces findings that the executor will leave
+in `skipped`, with the reason `not-in-approved-plan`.

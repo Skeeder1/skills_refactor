@@ -1,44 +1,44 @@
-# Spécification de conception — quality-team généraliste
+# Design specification — general-purpose quality-team
 
-> Ce document est la spécification qui a servi à construire le skill, conservée
-> comme référence d'intention. Il décrit ce que le pipeline **doit** faire ;
-> [`architecture.md`](architecture.md) décrit ce qu'il fait effectivement.
-> En cas de divergence, l'implémentation dans
-> [`quality-team/`](../quality-team/) fait foi.
+> This document is the specification the skill was built from, kept as a record
+> of intent. It describes what the pipeline **must** do;
+> [`architecture.md`](architecture.md) describes what it actually does.
+> Where the two diverge, the implementation in
+> [`quality-team/`](../quality-team/) is authoritative.
 
-Construire et maintenir un skill `quality-team` utilisable sur n'importe quel
-projet de code. Le coeur du skill ne doit pas supposer React, Tauri, TypeScript,
-Rust, npm, Biome, Clippy ou tout autre outil spécifique.
+Build and maintain a `quality-team` skill usable on any code project. The core
+of the skill must not assume React, Tauri, TypeScript, Rust, npm, Biome, Clippy
+or any other specific tool.
 
-## Architecture cible
+## Target architecture
 
-Chaîne d'agents :
+Agent chain:
 
 ```text
 scout -> principles-auditor -> refactor-executor -> doc-updater
 ```
 
-Le skill orchestrateur reste un routeur :
-- parse `scope` et `mode`
-- détecte le profil projet
-- charge les références universelles
-- charge les playbooks optionnels seulement si applicables
-- spawne les agents
-- présente un plan avant toute modification
-- synthétise le résultat final
+The orchestrator skill stays a router:
+- parses `scope` and `mode`
+- detects the project profile
+- loads the universal references
+- loads the optional playbooks only when they apply
+- spawns the agents
+- presents a plan before any modification
+- summarises the final result
 
-## Principe général
+## General principle
 
-Le pipeline doit fonctionner même si aucun outil spécialisé n'est disponible.
-Qartez, Lizard, linters, typecheckers et test runners enrichissent l'analyse,
-mais ne sont pas requis globalement.
+The pipeline must work even when no specialised tool is available. Qartez,
+Lizard, linters, typecheckers and test runners enrich the analysis, but none of
+them is required globally.
 
-Si aucune validation n'est détectée :
-- l'audit continue
-- le plan indique `validation: skipped`
-- le refactor automatique reste plus conservateur
+If no validation is detected:
+- the audit carries on
+- the plan states `validation: skipped`
+- automatic refactoring stays more conservative
 
-## Fichiers principaux
+## Main files
 
 ```text
 quality-team/
@@ -68,47 +68,46 @@ agents/
   doc-updater.md
 ```
 
-## Références universelles
+## Universal references
 
-`references/principles.md` contient les règles applicables à tout codebase :
-responsabilité, source de vérité, contrats, invariants, erreurs, effets de bord,
-duplication, nommage, complexité et documentation vivante.
+`references/principles.md` holds the rules applicable to any codebase:
+responsibility, source of truth, contracts, invariants, errors, side effects,
+duplication, naming, complexity and living documentation.
 
-`references/safe-refactor.md` définit uniquement les refactors sûrs et
-universels : suppression de code mort confirmé, logs de debug, blocs commentés,
-constantes locales, renommages confirmés, petites extractions locales et
-documentation.
+`references/safe-refactor.md` defines only the safe, universal refactorings:
+removing confirmed dead code, debug logs, commented-out blocks, local constants,
+confirmed renames, small local extractions and documentation.
 
-`references/ai-smells.md` décrit les patterns de code généré par IA sans dépendre
-d'un framework.
+`references/ai-smells.md` describes the patterns of AI-generated code, without
+depending on any framework.
 
-## Playbooks optionnels
+## Optional playbooks
 
-Les playbooks sont des extensions stack-spécifiques. Ils ne sont chargés que si
-le projet détecté correspond :
-- `react-ts.md` : React / TypeScript / Tauri
-- `rust.md` : Rust
+Playbooks are stack-specific extensions. They are loaded only when the detected
+project matches:
+- `react-ts.md`: React / TypeScript / Tauri
+- `rust.md`: Rust
 
-Un playbook non applicable ne doit jamais produire de violation.
+A playbook that does not apply must never produce a violation.
 
-## Sorties JSON
+## JSON outputs
 
-`findings.json` contient :
+`findings.json` holds:
 - scope
-- profil projet détecté
-- outils utilisés
-- commandes de validation candidates
-- hotspots, dead code, complexité, clones, lint, dépendances inutilisées, erreurs
+- detected project profile
+- tools used
+- candidate validation commands
+- hotspots, dead code, complexity, clones, lint, unused dependencies, errors
 
-`violations.json` contient :
+`violations.json` holds:
 - blocking, important, nit, suggestion
 - ai_smells
 - manual_verify
 
-`changes.json` contient :
+`changes.json` holds:
 - applied
 - skipped
-- validation_results sous forme générique :
+- validation_results, in a generic form:
 
 ```json
 [
@@ -123,25 +122,25 @@ Un playbook non applicable ne doit jamais produire de violation.
 
 ## Validation
 
-La validation est auto-détectée :
-- scripts déclarés par le projet : `test`, `lint`, `typecheck`, `check`, `build`
-- commandes natives si manifest/config présent
-- sinon `skipped`
+Validation is auto-detected:
+- scripts declared by the project: `test`, `lint`, `typecheck`, `check`, `build`
+- native commands when the manifest/config is present
+- otherwise `skipped`
 
-Le refactor-executor utilise uniquement les commandes détectées dans
+The refactor-executor uses only the commands detected in
 `.claude/quality-team/validation_commands.json`.
 
-## Consultation utilisateur
+## Asking the user
 
-Avant tout refactor, le skill génère `.claude/quality-team/refactor_plan.md`
-depuis `templates/refactor-plan.md`, l'affiche à l'utilisateur et attend une
-validation explicite.
+Before any refactoring, the skill generates
+`.claude/quality-team/refactor_plan.md` from `templates/refactor-plan.md`, shows
+it to the user, and waits for an explicit approval.
 
-Sans validation explicite, aucun code n'est modifié et le run continue en rapport
-uniquement.
+Without an explicit approval, no code is modified and the run continues as a
+report only.
 
 ## Documentation
 
-`README.md`, `INSTALL.md` et `MCP_CHECKLIST.md` doivent présenter le skill comme
-généraliste. Les outils stack-spécifiques doivent toujours être décrits comme
-optionnels selon le projet cible.
+`README.md`, `INSTALL.md` and `MCP_CHECKLIST.md` must present the skill as
+general-purpose. Stack-specific tools must always be described as optional,
+depending on the target project.

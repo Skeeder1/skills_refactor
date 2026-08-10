@@ -1,34 +1,34 @@
-# quality-team — Audit et refactoring prudent pour tout codebase
+# quality-team — Audit and careful refactoring for any codebase
 
-`/quality-team` lance une chaîne de 4 sous-agents généralistes. Le skill détecte
-le projet au runtime, charge les règles universelles, puis ajoute seulement les
-playbooks qui correspondent au stack détecté.
+`/quality-team` runs a chain of 4 general-purpose sub-agents. The skill detects
+the project at runtime, loads the universal rules, then adds only the playbooks
+matching the detected stack.
 
-## Chaîne d'agents
+## Agent chain
 
-| Agent | Rôle | Output |
+| Agent | Role | Output |
 |-------|------|--------|
-| scout | Détecte manifests, langages, outils, hotspots, complexité, dead code, clones et lint best-effort. | `findings.json` |
-| principles-auditor | Applique les principes universels, AI smells et playbooks applicables. | `violations.json` |
-| refactor-executor | Applique uniquement les changements validés par l'utilisateur et autorisés par les règles de sécurité. | `changes.json` |
-| doc-updater | Produit le rapport final et met à jour uniquement la documentation projet. | `REFACTOR_REPORT.md` |
+| scout | Detects manifests, languages, tools, hotspots, complexity, dead code, clones and best-effort lint. | `findings.json` |
+| principles-auditor | Applies the universal principles, the AI smells and the applicable playbooks. | `violations.json` |
+| refactor-executor | Applies only the changes approved by the user and allowed by the safety rules. | `changes.json` |
+| doc-updater | Produces the final report and updates project documentation only. | `REFACTOR_REPORT.md` |
 
-## Fichiers produits
+## Files produced
 
 ```text
 .claude/quality-team/
-  project_profile.json       # manifests, langages, playbooks applicables
-  validation_commands.json   # commandes détectées pour ce projet
-  baseline_validation.json   # état avant refactor
-  findings.json              # analyse statique consolidée
-  violations.json            # violations classifiées
-  refactor_plan.md           # plan présenté avant modification
-  changes.json               # changements appliqués/skippés (absent si audit-only)
+  project_profile.json       # manifests, languages, applicable playbooks
+  validation_commands.json   # commands detected for this project
+  baseline_validation.json   # state before refactoring
+  findings.json              # consolidated static analysis
+  violations.json            # classified violations
+  refactor_plan.md           # plan presented before any modification
+  changes.json               # changes applied/skipped (absent in audit-only)
 
-REFACTOR_REPORT.md           # rapport lisible à la racine du projet analysé
+REFACTOR_REPORT.md           # readable report, at the root of the analysed project
 ```
 
-## Utilisation
+## Usage
 
 ```text
 /quality-team .
@@ -36,31 +36,31 @@ REFACTOR_REPORT.md           # rapport lisible à la racine du projet analysé
 /quality-team packages/api refactor
 ```
 
-En modes `refactor` et `all`, le skill présente toujours un plan avant toute
-modification. Le refactoring ne démarre qu'après validation explicite.
+In `refactor` and `all` modes, the skill always presents a plan before any
+modification. Refactoring starts only after explicit approval.
 
-## Généraliste par défaut
+## General-purpose by default
 
-Le coeur ne dépend d'aucun stack. Il peut analyser un projet JavaScript,
-TypeScript, Rust, Python, Go, Java, PHP, Ruby, .NET ou mixte tant que des fichiers
-source existent. Si aucune commande de validation n'est détectée, le pipeline
-continue et marque la validation comme `skipped`.
+The core depends on no stack. It can analyse a JavaScript, TypeScript, Rust,
+Python, Go, Java, PHP, Ruby, .NET or mixed project as long as source files
+exist. If no validation command is detected, the pipeline carries on and marks
+the validation as `skipped`.
 
-## Playbooks optionnels
+## Optional playbooks
 
-Les playbooks ajoutent des règles spécialisées seulement quand le projet le justifie :
+Playbooks add specialised rules only when the project justifies them:
 
-- `playbooks/react-ts.md` : React / TypeScript / Tauri détecté
-- `playbooks/rust.md` : Rust détecté
+- `playbooks/react-ts.md`: React / TypeScript / Tauri detected
+- `playbooks/rust.md`: Rust detected
 
-Un playbook non applicable ne doit jamais produire de violation.
+A playbook that does not apply must never produce a violation.
 
 ## Limitations
 
-- Les fichiers sans contexte suffisant ou trop risqués sont placés en `manual_verify`.
-- Les corrections automatiques restent volontairement petites.
-- Les validations dépendent des scripts et outils présents dans le projet cible.
-- Qartez améliore fortement la précision, mais le skill fonctionne sans MCP.
+- Files without enough context, or too risky to touch, are placed in `manual_verify`.
+- Automatic fixes are deliberately kept small.
+- Validations depend on the scripts and tools present in the target project.
+- Qartez improves precision considerably, but the skill works without any MCP.
 
 ## Architecture
 

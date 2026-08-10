@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "findings.schema.json",
   "title": "Findings",
-  "description": "Output produit par scout : analyse statique consolidée et profil projet détecté.",
+  "description": "Output produced by scout: consolidated static analysis and detected project profile.",
   "type": "object",
   "required": [
     "scope",

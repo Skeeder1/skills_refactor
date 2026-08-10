@@ -1,35 +1,35 @@
-# Guide d'installation — quality-team
+# Installation guide — quality-team
 
-## Prérequis minimaux
+## Minimum requirements
 
-- Claude Code avec support des skills et agents.
-- Un projet source à analyser.
-- Git recommandé pour permettre les diffs et reverts sûrs.
+- Claude Code with support for skills and agents.
+- A source project to analyse.
+- Git recommended, so that diffs and reverts stay safe.
 
-Aucun langage, runtime ou gestionnaire de paquets n'est obligatoire globalement.
-Les outils de validation sont détectés dans chaque projet cible.
+No language, runtime or package manager is required globally. Validation tools
+are detected inside each target project.
 
-## Outils recommandés
+## Recommended tooling
 
-| Outil | Rôle | Statut |
-|-------|------|--------|
-| Qartez MCP | structure, hotspots, blast radius, dead code, clones AST | recommandé |
-| Lizard | complexité multi-langage | recommandé |
-| Linters/typecheckers du projet | validation après refactor | optionnels selon stack |
+| Tool | Role | Status |
+|------|------|--------|
+| Qartez MCP | structure, hotspots, blast radius, dead code, AST clones | recommended |
+| Lizard | multi-language complexity | recommended |
+| The project's own linters/typecheckers | validation after refactoring | optional, depends on the stack |
 
-Exemples d'outils stack-spécifiques détectés si présents : scripts npm/pnpm/yarn,
+Examples of stack-specific tools detected when present: npm/pnpm/yarn scripts,
 Cargo, Go, pytest/ruff/mypy, Maven, Gradle, Make, Composer, Bundler, dotnet.
 
-## Récupérer le dépôt
+## Get the repository
 
 ```bash
 git clone https://github.com/Skeeder1/skills_refactor.git
 cd skills_refactor
 ```
 
-Les commandes ci-dessous s'exécutent depuis la racine du dépôt cloné.
+The commands below are run from the root of the cloned repository.
 
-## Installer le skill et les agents
+## Install the skill and the agents
 
 ### Linux / macOS
 
@@ -47,26 +47,26 @@ Copy-Item -Recurse -Force ".\quality-team" "$env:USERPROFILE\.claude\skills\qual
 Copy-Item ".\agents\*.md" "$env:USERPROFILE\.claude\agents\"
 ```
 
-Pour réinstaller par-dessus une version existante sous Linux/macOS, supprimer
-d'abord `~/.claude/skills/quality-team` : sinon `cp -r` imbrique le dossier au
-lieu de le remplacer.
+To reinstall over an existing copy on Linux/macOS, delete
+`~/.claude/skills/quality-team` first — otherwise `cp -r` nests the directory
+inside itself instead of replacing it.
 
-## Références et playbooks
+## References and playbooks
 
-Les références sont embarquées dans `quality-team/` et injectées par
-l'orchestrateur. Les playbooks sont optionnels et chargés seulement si le projet
-cible correspond au stack détecté.
+The references ship inside `quality-team/` and are injected by the
+orchestrator. Playbooks are optional and loaded only when the target project
+matches the detected stack.
 
-## MCP optionnels
+## Optional MCP servers
 
-Consulte `MCP_CHECKLIST.md` pour configurer :
-- Qartez MCP, recommandé pour tous les projets
-- @knip/mcp, utile pour projets JavaScript/TypeScript
-- SonarQube MCP, utile pour environnements enterprise
+See `MCP_CHECKLIST.md` to configure:
+- Qartez MCP, recommended for every project
+- @knip/mcp, useful for JavaScript/TypeScript projects
+- SonarQube MCP, useful in enterprise environments
 
-## Utilisation
+## Usage
 
-Dans Claude Code, depuis la racine du projet cible :
+In Claude Code, from the root of the target project:
 
 ```text
 /quality-team .
@@ -74,24 +74,24 @@ Dans Claude Code, depuis la racine du projet cible :
 /quality-team packages/api refactor
 ```
 
-Sorties attendues :
+Expected outputs:
 - `.claude/quality-team/findings.json`
 - `.claude/quality-team/violations.json`
 - `.claude/quality-team/refactor_plan.md`
-- `.claude/quality-team/changes.json` si refactor validé
+- `.claude/quality-team/changes.json` if the refactoring was approved
 - `REFACTOR_REPORT.md`
 
-## Vérification rapide
+## Quick verification
 
 ### Linux / macOS
 
 ```bash
-test -f ~/.claude/skills/quality-team/SKILL.md && echo "skill installé"
+test -f ~/.claude/skills/quality-team/SKILL.md && echo "skill installed"
 ls ~/.claude/agents/
 ```
 
-Les quatre fichiers attendus dans `~/.claude/agents/` sont `scout.md`,
-`principles-auditor.md`, `refactor-executor.md` et `doc-updater.md`.
+The four expected files in `~/.claude/agents/` are `scout.md`,
+`principles-auditor.md`, `refactor-executor.md` and `doc-updater.md`.
 
 ### Windows (PowerShell)
 

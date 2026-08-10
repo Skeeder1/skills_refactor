@@ -1,163 +1,169 @@
 ---
 name: quality-team
 description: >
-  Lance une chaîne de sous-agents généralistes pour auditer, planifier,
-  refactorer prudemment et documenter n'importe quel codebase. Le skill détecte
-  le stack au runtime, charge seulement les playbooks pertinents, puis spawn :
+  Runs a chain of general-purpose sub-agents to audit, plan, carefully refactor
+  and document any codebase. The skill detects the stack at runtime, loads only
+  the relevant playbooks, then spawns:
   scout → principles-auditor → refactor-executor → doc-updater.
-  Use when: "audit qualité", "nettoie le code", "refactor", "code mort",
-  "trop de problèmes structurels". Do not use: ajout de feature, correction
-  d'un bug précis, génération de tests from scratch.
+  Use when: "audit", "code quality", "refactor", "dead code", "clean up the
+  code", "too many structural problems" — and the French equivalents:
+  "audit qualité", "nettoie le code", "code mort", "trop de problèmes
+  structurels". Do not use: adding a feature, fixing one specific bug,
+  generating tests from scratch.
 when_to_use: >
-  Déclencher sur : "quality-team", "audit", "refactor", "code mort",
-  "mauvaise qualité", "nettoie le code", "problèmes structurels".
-  Ne pas déclencher sur : ajout de feature, fix de bug précis, écriture de tests.
+  Trigger on: "quality-team", "audit", "refactor", "dead code", "code quality",
+  "clean up the code", "structural problems" — and the French equivalents:
+  "audit qualité", "nettoie le code", "code mort", "mauvaise qualité",
+  "problèmes structurels".
+  Do not trigger on: adding a feature, fixing a specific bug, writing tests.
 argument-hint: "[scope] [mode]"
 arguments:
-  - scope     # chemin relatif à analyser (défaut: .)
-  - mode      # "audit-only" | "refactor" | "all" (défaut: all)
+  - scope     # relative path to analyse (default: .)
+  - mode      # "audit-only" | "refactor" | "all" (default: all)
 allowed-tools:
   - Read
   - Bash
 user-invocable: true
 ---
 
-## Rôle du skill
+## Role of the skill
 
-Tu es l'orchestrateur. Reste léger : détecte le contexte, charge les références,
-spawne les agents, vérifie les fichiers de sortie et présente les décisions à
-l'utilisateur. Ne porte pas la logique d'audit détaillée dans ce fichier.
+You are the orchestrator. Stay thin: detect the context, load the references,
+spawn the agents, check the output files and present the decisions to the user.
+Do not carry the detailed audit logic in this file.
 
-Lis le scope et le mode depuis `$ARGUMENTS`.
+Read the scope and the mode from `$ARGUMENTS`.
 
-- Si `$ARGUMENTS` est vide : `scope=.`, `mode=all`
-- Si un seul argument : c'est le scope, `mode=all`
-- Si deux arguments : premier=scope, deuxième=mode
-- Modes valides : `audit-only`, `refactor`, `all`
+- If `$ARGUMENTS` is empty: `scope=.`, `mode=all`
+- If there is a single argument: it is the scope, `mode=all`
+- If there are two arguments: first=scope, second=mode
+- Valid modes: `audit-only`, `refactor`, `all`
 
-Remplace toujours `<scope>` et `<mode>` par leurs valeurs littérales dans les
-prompts envoyés aux sous-agents.
+Always replace `<scope>` and `<mode>` with their literal values in the prompts
+sent to the sub-agents.
 
-## Phase 0 — Préparation et détection
+## Phase 0 — Preparation and detection
 
-Crée `.claude/quality-team` si absent.
+Create `.claude/quality-team` if it does not exist.
 
-Détecte le projet sans supposer de stack :
-- manifests : `package.json`, `Cargo.toml`, `pyproject.toml`, `setup.py`,
+Detect the project without assuming a stack:
+- manifests: `package.json`, `Cargo.toml`, `pyproject.toml`, `setup.py`,
   `requirements.txt`, `go.mod`, `pom.xml`, `build.gradle`, `Makefile`,
-  `composer.json`, `Gemfile`, fichiers `.sln` / `.csproj`
-- langages dominants depuis les extensions présentes dans `<scope>`
-- commandes de validation disponibles : scripts `test`, `lint`, `typecheck`,
-  `check`, `build`, ou commandes natives dont le manifest/config existe
+  `composer.json`, `Gemfile`, `.sln` / `.csproj` files
+- dominant languages, from the extensions present in `<scope>`
+- available validation commands: `test`, `lint`, `typecheck`, `check`, `build`
+  scripts, or native commands whose manifest/config exists
 
-Enregistre :
+Record:
 - `.claude/quality-team/project_profile.json`
 - `.claude/quality-team/validation_commands.json`
 - `.claude/quality-team/baseline_validation.json`
 
-Si aucune validation n'est détectée, note une validation `skipped` et continue.
+If no validation is detected, record the validation as `skipped` and continue.
 
-## Phase 0b — Références
+## Phase 0b — References
 
-Lis et garde disponibles pour les prompts :
+Read and keep available for the prompts:
 - `references/principles.md`
 - `references/safe-refactor.md`
 - `references/ai-smells.md`
 - `templates/refactor-plan.md`
-- `references/clean-code-rules.md` si le contexte le permet
-- `references/refactoring-rules.md` si le contexte le permet
+- `references/clean-code-rules.md` if the context allows it
+- `references/refactoring-rules.md` if the context allows it
 
-Charge les playbooks uniquement si le profil projet les justifie :
-- `playbooks/react-ts.md` seulement pour React / TypeScript / Tauri détecté
-- `playbooks/rust.md` seulement pour Rust détecté
+Load the playbooks only if the project profile justifies them:
+- `playbooks/react-ts.md` only when React / TypeScript / Tauri is detected
+- `playbooks/rust.md` only when Rust is detected
 
-Un playbook optionnel ne doit jamais produire de violation sur un projet qui ne
-correspond pas à son stack.
+An optional playbook must never produce a violation on a project that does not
+match its stack.
 
 ## Phase 1 — Scout
 
-Spawne `scout` :
+Spawn `scout`:
 
 ```text
-Analyse le scope : <scope>.
-Mode quality-team : <mode>.
-Lis .claude/quality-team/project_profile.json et validation_commands.json.
-Produit : .claude/quality-team/findings.json
-Contrainte : lecture seule, aucune modification de fichier.
+Analyse the scope: <scope>.
+quality-team mode: <mode>.
+Read .claude/quality-team/project_profile.json and validation_commands.json.
+Produce: .claude/quality-team/findings.json
+Constraint: read-only, no file modification.
 ```
 
-Attends la fin. Si `findings.json` est absent, arrête avec un message clair.
+Wait until it finishes. If `findings.json` is missing, stop with a clear message.
 
 ## Phase 2 — Principles auditor
 
-Spawne `principles-auditor` avec `findings.json`, les références universelles et
-les playbooks optionnels chargés en Phase 0b :
+Spawn `principles-auditor` with `findings.json`, the universal references and
+the optional playbooks loaded in Phase 0b:
 
 ```text
-Analyse le scope : <scope>.
-Mode quality-team : <mode>.
-Lis .claude/quality-team/findings.json.
-Produit : .claude/quality-team/violations.json
-Contrainte : lecture seule, aucune modification de fichier.
-Applique d'abord les principes universels, puis seulement les playbooks applicables.
+Analyse the scope: <scope>.
+quality-team mode: <mode>.
+Read .claude/quality-team/findings.json.
+Produce: .claude/quality-team/violations.json
+Constraint: read-only, no file modification.
+Apply the universal principles first, then only the applicable playbooks.
 ```
 
-Attends la fin. Si `violations.json` est absent, arrête avec un message clair.
+Wait until it finishes. If `violations.json` is missing, stop with a clear
+message.
 
-## Phase 2b — Plan et validation utilisateur
+## Phase 2b — Plan and user approval
 
-Construis `.claude/quality-team/refactor_plan.md` depuis
-`templates/refactor-plan.md`, `findings.json`, `violations.json` et
+Build `.claude/quality-team/refactor_plan.md` from
+`templates/refactor-plan.md`, `findings.json`, `violations.json` and
 `validation_commands.json`.
 
-Présente le plan avant toute modification. En modes `refactor` et `all`, ne lance
-jamais `refactor-executor` sans validation explicite de l'utilisateur (`oui`,
-`valide`, `continue`, `lance`). Toute réponse absente, ambiguë ou négative passe
-le run en rapport uniquement.
+Present the plan before any modification. In `refactor` and `all` modes, never
+launch `refactor-executor` without an explicit approval from the user (`yes`,
+`approved`, `go ahead`, `run it`, or their French equivalents `oui`, `valide`,
+`continue`, `lance`). Any missing, ambiguous or negative answer switches the run
+to report-only.
 
-En mode `audit-only`, affiche le plan comme recommandations et saute la Phase 3.
+In `audit-only` mode, present the plan as recommendations and skip Phase 3.
 
 ## Phase 3 — Refactor executor
 
-Seulement si `mode != audit-only` et si le plan a été validé, spawne
-`refactor-executor` :
+Only if `mode != audit-only` and the plan was approved, spawn
+`refactor-executor`:
 
 ```text
-Analyse le scope : <scope>.
-Mode quality-team : <mode>.
-Plan validé par l'utilisateur : oui.
-Lis .claude/quality-team/refactor_plan.md.
-Lis .claude/quality-team/violations.json.
-Lis .claude/quality-team/findings.json.
-Lis .claude/quality-team/validation_commands.json.
-Produit : .claude/quality-team/changes.json
-Applique uniquement les changements prévus dans refactor_plan.md et autorisés par safe-refactor.md.
-Valide avec les commandes détectées, si elles existent.
-Si validation échoue : revert le fichier modifié et log dans changes.skipped.
+Analyse the scope: <scope>.
+quality-team mode: <mode>.
+Plan approved by the user: yes.
+Read .claude/quality-team/refactor_plan.md.
+Read .claude/quality-team/violations.json.
+Read .claude/quality-team/findings.json.
+Read .claude/quality-team/validation_commands.json.
+Produce: .claude/quality-team/changes.json
+Apply only the changes planned in refactor_plan.md and allowed by safe-refactor.md.
+Validate with the detected commands, if any exist.
+If validation fails: revert the modified file and log it in changes.skipped.
 ```
 
 ## Phase 4 — Doc updater
 
-Spawne `doc-updater` :
+Spawn `doc-updater`:
 
 ```text
-Analyse le scope : <scope>.
-Mode quality-team : <mode>.
-Lis findings.json, violations.json, refactor_plan.md, validation_commands.json.
-Lis changes.json seulement s'il existe.
-Génère REFACTOR_REPORT.md à la racine du projet analysé.
-Ne modifie jamais le code source ; seules les docs peuvent changer.
+Analyse the scope: <scope>.
+quality-team mode: <mode>.
+Read findings.json, violations.json, refactor_plan.md, validation_commands.json.
+Read changes.json only if it exists.
+Generate REFACTOR_REPORT.md at the root of the analysed project.
+Never modify source code; only documentation may change.
 ```
 
-## Phase 5 — Synthèse finale
+## Phase 5 — Final summary
 
-Relance les commandes de validation détectées si un refactor a été appliqué.
-Compare `baseline_validation.json` et les résultats post-refactor.
+Re-run the detected validation commands if a refactoring was applied.
+Compare `baseline_validation.json` with the post-refactoring results.
 
-Affiche :
-- scope et mode
-- validation avant → après pour chaque commande détectée
-- chemin du rapport
-- changements appliqués / skippés
-- fichiers en vérification manuelle
-- playbooks chargés
+Display:
+- scope and mode
+- validation before → after for each detected command
+- path to the report
+- changes applied / skipped
+- files left for manual verification
+- playbooks loaded

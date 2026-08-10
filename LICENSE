@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2026 Skeeder1
+Copyright (c) 2026 Elias Bellouti
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,13 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-Contenu tiers
--------------
-
-quality-team/references/clean-code-rules.md et
-quality-team/references/refactoring-rules.md sont dérivés de
-https://github.com/ciembor/agent-rules-books, distribué sous licence MIT.
-La source est rappelée en en-tête de chacun de ces fichiers.

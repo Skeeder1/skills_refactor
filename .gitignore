@@ -1,6 +1,6 @@
-# --- Secrets et identifiants -------------------------------------------------
-# Note : le motif `.env` seul ne matche que le fichier nommé exactement « .env ».
-# `*.env` est nécessaire pour couvrir `secrets.env`, `prod.env`, etc.
+# --- Secrets and credentials ------------------------------------------------
+# Note: the bare `.env` pattern only matches a file named exactly ".env".
+# `*.env` is needed to cover `secrets.env`, `prod.env`, etc.
 .env
 *.env
 !*.env.example
@@ -12,15 +12,15 @@ credentials*
 *.pfx
 id_rsa*
 
-# --- Artefacts produits par quality-team au runtime --------------------------
-# Le skill écrit ses fichiers intermédiaires dans le projet analysé.
+# --- Artifacts produced by quality-team at runtime --------------------------
+# The skill writes its intermediate files into the project being analyzed.
 .claude/quality-team/
 REFACTOR_REPORT.md
 
-# --- Réglages Claude Code locaux (personnels, propres à une machine) ---------
+# --- Local Claude Code settings (personal, machine-specific) ----------------
 .claude/settings.local.json
 
-# --- Système -----------------------------------------------------------------
+# --- OS ---------------------------------------------------------------------
 .DS_Store
 Thumbs.db
 desktop.ini
